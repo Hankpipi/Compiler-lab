@@ -47,7 +47,7 @@ class StmtAST : public BaseAST {
 
 class ExpAST : public BaseAST {
  public:
-    std::unique_ptr<BaseAST> add_exp;
+    std::unique_ptr<BaseAST> tuple_exp;
     std::string GenIR() const override;
 };
 
@@ -68,23 +68,14 @@ class UnaryExpAST : public BaseAST {
     std::string GenIR() const override;
 };
 
-
-class MulExpAST : public BaseAST {
+class TupleExpAST : public BaseAST {
  public:
     int state;
     std::string op;
-    std::unique_ptr<BaseAST> mul_exp;
-    std::unique_ptr<BaseAST> unary_exp;
+    std::unique_ptr<BaseAST> src;
+    std::unique_ptr<BaseAST> dst;
     std::string GenIR() const override;
 };
 
-class AddExpAST : public BaseAST {
- public:
-    int state;
-    std::unique_ptr<BaseAST> mul_exp;
-    std::unique_ptr<BaseAST> add_exp;
-    std::string op;
-    std::string GenIR() const override;
-};
 
 #endif

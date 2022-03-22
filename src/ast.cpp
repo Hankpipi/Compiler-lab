@@ -36,7 +36,7 @@ std::string StmtAST::GenIR() const {
 }
 
 std::string ExpAST::GenIR() const {
-    return add_exp->GenIR();
+    return tuple_exp->GenIR();
 }
 
 std::string PrimaryExpAST::GenIR() const {
@@ -64,41 +64,49 @@ std::string UnaryExpAST::GenIR() const {
     return ret;
 }
 
-std::string MulExpAST::GenIR() const {
+std::string TupleExpAST::GenIR() const {
     if(state == 1)
-        return unary_exp->GenIR();
+        return dst->GenIR();
     std::string ret = "";
-    ret += mul_exp->GenIR();
+    ret += src->GenIR();
     int src = id - 1;
-    ret += unary_exp->GenIR();
+    ret += dst->GenIR();
     int dst = id - 1;
 
-    std::string inst = "";
+    std::string inst = "  " + GenVar(id++);
     if(op == "*")
-        inst += "  " + GenVar(id++) + " = mul %";
+        inst += " = mul %";
     else if (op == "/")
-        inst += "  " + GenVar(id++) + " = div %";
+        inst += " = div %";
     else if (op == "%")
-        inst += "  " + GenVar(id++) + " = mod %";
-
-    ret += inst + std::to_string(src) + ", %" + std::to_string(dst) + "\n";
-    return ret;
-}
-
-std::string AddExpAST::GenIR() const {
-    if(state == 1)
-        return mul_exp->GenIR();
-    std::string ret = "";
-    ret += add_exp->GenIR();
-    int src = id - 1;
-    ret += mul_exp->GenIR();
-    int dst = id - 1;
-
-    std::string inst = "";
-    if(op == "+")
-        inst += "  " + GenVar(id++) + " = add %";
+        inst += " = mod %";
+    else if(op == "+")
+        inst += " = add %";
     else if (op == "-")
-        inst += "  " + GenVar(id++) + " = sub %";
+        inst += " = sub %";
+    else if (op == "==")
+        inst += " = eq %";
+    else if (op == "!=")
+        inst += " = ne %";
+    else if (op == ">")
+        inst += " = gt %";
+    else if (op == ">=")
+        inst += " = ge %";
+    else if (op == "<")
+        inst += " = lt %";
+    else if (op == "<=")
+        inst += " = le %";
+    else {
+        ret += inst + " = ne %" + std::to_string(src) + ", 0\n";
+        src = id - 1;
+        ret += "  " + GenVar(id++) + " = ne %" + std::to_string(dst) + ", 0\n";
+        dst = id - 1;
+        inst = "  " + GenVar(id++);
+        if (op == "&&")
+            inst += " = and %";
+        else if (op == "||")
+            inst += " = or %";
+    }
 
     ret += inst + std::to_string(src) + ", %" + std::to_string(dst) + "\n";
     return ret;

@@ -39,11 +39,11 @@ using namespace std;
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
 %token INT RETURN
-%token <str_val> IDENT UNARY_OP MUL_OP
+%token <str_val> IDENT UNARY_OP MUL_OP REL_OP EQ_OP OR_OP AND_OP
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt PrimaryExp Exp UnaryExp AddExp MulExp
+%type <ast_val> FuncDef FuncType Block Stmt PrimaryExp Exp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
 %type <int_val> Number
 
 %%
@@ -129,9 +129,9 @@ UnaryExp
   ;
 
 Exp
-  : AddExp {
+  : LOrExp {
     auto ast = new ExpAST();
-    ast->add_exp = unique_ptr<BaseAST>($1);
+    ast->tuple_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -153,34 +153,102 @@ PrimaryExp
 
 MulExp
   : UnaryExp {
-    auto ast = new MulExpAST();
+    auto ast = new TupleExpAST();
     ast->state = 1;
-    ast->unary_exp = unique_ptr<BaseAST>($1);
+    ast->dst = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | MulExp MUL_OP UnaryExp {
-    auto ast = new MulExpAST();
+    auto ast = new TupleExpAST();
     ast->state = 2;
-    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->src = unique_ptr<BaseAST>($1);
     ast->op = *unique_ptr<string>($2);
-    ast->unary_exp = unique_ptr<BaseAST>($3);
+    ast->dst = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
 
 AddExp
   : MulExp {
-    auto ast = new AddExpAST();
+    auto ast = new TupleExpAST();
     ast->state = 1;
-    ast->mul_exp = unique_ptr<BaseAST>($1);
+    ast->dst = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | AddExp UNARY_OP MulExp {
-    auto ast = new AddExpAST();
+    auto ast = new TupleExpAST();
     ast->state = 2;
-    ast->add_exp = unique_ptr<BaseAST>($1);
+    ast->src = unique_ptr<BaseAST>($1);
     ast->op = *unique_ptr<string>($2);
-    ast->mul_exp = unique_ptr<BaseAST>($3);
+    ast->dst = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+LOrExp
+  : LAndExp {
+    auto ast = new TupleExpAST();
+    ast->state = 1;
+    ast->dst = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | LOrExp OR_OP LAndExp {
+    auto ast = new TupleExpAST();
+    ast->state = 2;
+    ast->src = unique_ptr<BaseAST>($1);
+    ast->op = *unique_ptr<string>($2);
+    ast->dst = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+LAndExp
+  : EqExp {
+    auto ast = new TupleExpAST();
+    ast->state = 1;
+    ast->dst = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | LAndExp AND_OP EqExp {
+    auto ast = new TupleExpAST();
+    ast->state = 2;
+    ast->src = unique_ptr<BaseAST>($1);
+    ast->op = *unique_ptr<string>($2);
+    ast->dst = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+EqExp
+  : RelExp {
+    auto ast = new TupleExpAST();
+    ast->state = 1;
+    ast->dst = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | EqExp EQ_OP RelExp {
+    auto ast = new TupleExpAST();
+    ast->state = 2;
+    ast->src = unique_ptr<BaseAST>($1);
+    ast->op = *unique_ptr<string>($2);
+    ast->dst = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+  
+RelExp
+  : AddExp {
+    auto ast = new TupleExpAST();
+    ast->state = 1;
+    ast->dst = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | RelExp REL_OP AddExp {
+    auto ast = new TupleExpAST();
+    ast->state = 2;
+    ast->src = unique_ptr<BaseAST>($1);
+    ast->op = *unique_ptr<string>($2);
+    ast->dst = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;

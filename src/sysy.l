@@ -18,7 +18,7 @@ using namespace std;
 /* 空白符和注释 */
 WhiteSpace    [ \t\n\r]*
 LineComment   "//".*
-BlockComment  "/*"(\s|.)*"*/"
+BlockComment  "/*"\/*([^*/]\/*|\*|[^*/])*"*/"
 
 /* 标识符 */
 Identifier    [a-zA-Z_][a-zA-Z0-9_]*
@@ -31,6 +31,10 @@ Hexadecimal   0[xX][0-9a-fA-F]+
 /* Operation */
 UnaryOp       ("+"|"-"|"!")
 MulOp         ("*"|"/"|"%")
+RelOp         ("<"|">"|"<="|">=")
+EqOp          ("=="|"!=")
+OrOp          "||"
+AndOp         "&&"
 
 %%
 
@@ -48,6 +52,10 @@ MulOp         ("*"|"/"|"%")
 {Hexadecimal}   { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {UnaryOp}       { yylval.str_val = new string(yytext); return UNARY_OP; }
 {MulOp}         { yylval.str_val = new string(yytext); return MUL_OP; }
+{RelOp}         { yylval.str_val = new string(yytext); return REL_OP; }
+{EqOp}          { yylval.str_val = new string(yytext); return EQ_OP; }
+{OrOp}          { yylval.str_val = new string(yytext); return OR_OP; }
+{AndOp}         { yylval.str_val = new string(yytext); return AND_OP; }
 
 .               { return yytext[0]; }
 
