@@ -7,23 +7,17 @@
 // 所有 AST 的基类
 class BaseAST {
  public:
+  static int id;
   virtual ~BaseAST() = default;
   virtual void Dump() const {}
   virtual std::string GenIR() const {}
 };
 
-// CompUnit 是 BaseAST
 class CompUnitAST : public BaseAST {
  public:
     std::unique_ptr<BaseAST> func_def;
-    void Dump() const override {
-        std::cout << "CompUnitAST { ";
-        func_def->Dump();
-        std::cout << " }";
-    }
-    std::string GenIR() const override {
-        return func_def->GenIR() + '\n';
-    }
+    void Dump() const override;
+    std::string GenIR() const override;
 };
 
 // FuncDef 也是 BaseAST
@@ -32,58 +26,63 @@ class FuncDefAST : public BaseAST {
     std::unique_ptr<BaseAST> func_type;
     std::string ident;
     std::unique_ptr<BaseAST> block;
-    void Dump() const override {
-        std::cout << "FuncDefAST { ";
-        func_type->Dump();
-        std::cout << ", " << ident << ", ";
-        block->Dump();
-        std::cout << " }";
-    }
-    std::string GenIR() const override {
-        std::string ret = "";
-        ret += "fun @" + ident + "(): ";
-        ret += func_type->GenIR() + " {\n";
-        ret += block->GenIR() + "}\n";
-        return ret;
-    }
+    void Dump() const override;
+    std::string GenIR() const override;
 };
 
 class FuncTypeAST : public BaseAST {
     public:
     std::string type;
-    void Dump() const override {
-        std::cout << "FuncTypeAST { " << type << " }";
-    }
-    std::string GenIR() const override {
-        if (type == "int")
-            return "i32";
-        else 
-            std::cout << "error: not implement!";
-    }
+    void Dump() const override;
+    std::string GenIR() const override;
 };
 
 class BlockAST : public BaseAST {
     public:
     std::unique_ptr<BaseAST> stmt;
-    void Dump() const override {
-        std::cout << "BlockAST { ";
-        stmt->Dump();
-        std::cout << " }";
-    }
-    std::string GenIR() const override {
-        return "%entry:\n" + stmt->GenIR();
-    }
+    void Dump() const override;
+    std::string GenIR() const override;
 };
 
 class StmtAST : public BaseAST {
     public:
+    std::unique_ptr<BaseAST> exp;
+    void Dump() const override;
+    std::string GenIR() const override;
+};
+
+class ExpAST : public BaseAST {
+ public:
+    std::unique_ptr<BaseAST> unary_exp;
+    void Dump() const override;
+    std::string GenIR() const override;
+};
+
+class PrimaryExpAST : public BaseAST {
+ public:
+    int state;
     int number;
-    void Dump() const override {
-        std::cout << "StmtAST { " << std::to_string(number) << " }";
-    }
-    std::string GenIR() const override {
-        return "  ret " + std::to_string(number) + "\n";
-    }
+    std::unique_ptr<BaseAST> exp;
+    void Dump() const override;
+    std::string GenIR() const override;
+};
+
+class UnaryExpAST : public BaseAST {
+ public:
+    int state;
+    int number;
+    std::unique_ptr<BaseAST> primary_exp;
+    std::unique_ptr<BaseAST> unary_op;
+    std::unique_ptr<BaseAST> unary_exp;
+    void Dump() const override;
+    std::string GenIR() const override;
+};
+
+class UnaryOpAST : public BaseAST {
+ public:
+    std::string op;
+    void Dump() const override;
+    std::string GenIR() const override;
 };
 
 #endif

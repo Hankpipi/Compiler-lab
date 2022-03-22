@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
-#include <string>
+#include <cstring>
 #include <ast.h>
 #include "koopa.h"
 #include "koopa2riscv.h"
@@ -36,7 +36,7 @@ int main(int argc, const char *argv[]) {
 
   std::string ir = ast->GenIR();
   freopen(output, "w", stdout);
-  if(mode == "koopa")
+  if(strcmp(mode, "-koopa") == 0)
     cout << ir;
   else {
     // 解析字符串 str, 得到 Koopa IR 程序
