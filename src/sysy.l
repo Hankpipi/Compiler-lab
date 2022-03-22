@@ -30,6 +30,7 @@ Hexadecimal   0[xX][0-9a-fA-F]+
 
 /* Operation */
 UnaryOp       ("+"|"-"|"!")
+MulOp         ("*"|"/"|"%")
 
 %%
 
@@ -46,6 +47,7 @@ UnaryOp       ("+"|"-"|"!")
 {Octal}         { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {Hexadecimal}   { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {UnaryOp}       { yylval.str_val = new string(yytext); return UNARY_OP; }
+{MulOp}         { yylval.str_val = new string(yytext); return MUL_OP; }
 
 .               { return yytext[0]; }
 
