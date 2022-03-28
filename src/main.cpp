@@ -5,7 +5,7 @@
 #include <cstring>
 #include <ast.h>
 #include "koopa.h"
-#include "koopa2riscv.h"
+#include "riscv.h"
 
 using namespace std;
 
