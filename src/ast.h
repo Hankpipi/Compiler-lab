@@ -57,6 +57,8 @@ class BlockItemAST : public BaseAST {
 
 class StmtAST : public BaseAST {
     public:
+    int state;
+    std::string var;
     std::unique_ptr<BaseAST> exp;
     std::string GenIR() const override;
 };
@@ -104,12 +106,6 @@ class DeclAST : public BaseAST {
     std::string GenIR() const override;
 };
 
-class ConstDeclAST : public BaseAST {
- public:
-    std::unique_ptr<BaseAST> def;
-    std::string GenIR() const override;
-};
-
 class ConstDefStarAST : public BaseAST {
  public:
     std::string GenIR() const override;
@@ -117,6 +113,19 @@ class ConstDefStarAST : public BaseAST {
 
 class ConstDefAST : public BaseAST {
  public:
+    std::string var;
+    std::unique_ptr<BaseAST> exp;
+    std::string GenIR() const override;
+};
+
+class VarDefStarAST : public BaseAST {
+ public:
+    std::string GenIR() const override;
+};
+
+class VarDefAST : public BaseAST {
+ public:
+    int state;
     std::string var;
     std::unique_ptr<BaseAST> exp;
     std::string GenIR() const override;

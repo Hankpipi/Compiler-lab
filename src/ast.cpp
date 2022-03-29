@@ -2,6 +2,7 @@
 
 int BaseAST::id = 0;
 std::map<std::string, std::string> table;
+std::map<std::string, std::string> vartable;
 
 std::string GenVar(int num) {
     return "%" + std::to_string(num);
@@ -46,8 +47,14 @@ std::string BlockItemAST::GenIR() const {
 }
 
 std::string StmtAST::GenIR() const {
-    std::string res = exp->GenIR();
-    printf("  ret %s\n", res.c_str());
+    if (state == 1) {
+        std::string res = exp->GenIR();
+        printf("  ret %s\n", res.c_str());
+    }
+    else {
+        std::string res = exp->GenIR();
+        printf("  store %s, @%s\n", res.c_str(), vartable[var].c_str());
+    }
     return "";
 }
 
@@ -60,8 +67,14 @@ std::string PrimaryExpAST::GenIR() const {
         return item->GenIR();
     if (state == 2)
         return var;
-    assert(table.find(var) != table.end());
-    return table[var];
+    if (table.find(var) != table.end())
+        return table[var];
+    if (vartable.find(var) != vartable.end()) {
+        std::string reg = GenVar(id++);
+        printf("  %s = load @%s\n", reg.c_str(), vartable[var].c_str());
+        return reg;
+    }
+    assert(false);
 }
 
 std::string UnaryExpAST::GenIR() const {
@@ -133,11 +146,14 @@ std::string DeclAST::GenIR() const {
     return sub_decl->GenIR();
 }
 
-std::string ConstDeclAST::GenIR() const {
-    return def->GenIR();
+std::string ConstDefStarAST::GenIR() const {
+    int n = son.size();
+    for(int i = 0; i < n; ++i)
+        son[i]->GenIR();
+    return "";
 }
 
-std::string ConstDefStarAST::GenIR() const {
+std::string VarDefStarAST::GenIR() const {
     int n = son.size();
     for(int i = 0; i < n; ++i)
         son[i]->GenIR();
@@ -147,6 +163,17 @@ std::string ConstDefStarAST::GenIR() const {
 std::string ConstDefAST::GenIR() const {
     assert(table.find(var) == table.end());
     table[var] = std::to_string(exp->calc());
+    return "";
+}
+
+std::string VarDefAST::GenIR() const {
+    assert(vartable.find(var) == vartable.end());
+    vartable[var] = "my_" + var;
+    printf("  @%s = alloc i32\n", vartable[var].c_str());
+    if(state == 1) {
+        std::string res = exp->GenIR();
+        printf("  store %s, @%s\n", res.c_str(), vartable[var].c_str());
+    }
     return "";
 }
 

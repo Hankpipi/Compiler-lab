@@ -44,7 +44,7 @@ using namespace std;
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt PrimaryExp Exp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
-%type <ast_val> Decl ConstDecl ConstDefStar ConstDef BlockItemStar BlockItem
+%type <ast_val> Decl ConstDefStar ConstDef VarDefStar VarDef BlockItemStar BlockItem
 %type <int_val> Number
 
 %%
@@ -129,7 +129,15 @@ BlockItem
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
+    ast->state = 1;
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | IDENT '=' Exp ';' {
+    auto ast = new StmtAST();
+    ast->state = 2;
+    ast->var = *unique_ptr<string>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
@@ -288,24 +296,14 @@ RelExp
   ;
 
 Decl
-  : ConstDecl {
+  : CONST INT ConstDefStar ';' {
     auto ast = new DeclAST();
-    ast->state = 1;
-    ast->sub_decl = unique_ptr<BaseAST>($1);
+    ast->sub_decl = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
-//  | VarDecl {
-//    auto ast = new DeclAST();
-//    ast->state = 2;
-//    ast->sub_decl = unique_ptr<BaseAST>($1);
-//    $$ = ast;
-//  }
-  ;
-
-ConstDecl
-  : CONST INT ConstDefStar ';' {
-    auto ast = new ConstDeclAST();
-    ast->def = unique_ptr<BaseAST>($3);
+  | INT VarDefStar ';' {
+    auto ast = new DeclAST();
+    ast->sub_decl = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   ;
@@ -327,6 +325,34 @@ ConstDef
     auto ast = new ConstDefAST();
     ast->var = *unique_ptr<string>($1);
     ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+VarDefStar   
+  : VarDef {
+    auto ast = new VarDefStarAST();
+    ast->son.push_back(unique_ptr<BaseAST>($1));
+    $$ = ast;
+  }
+  | VarDefStar ',' VarDef {
+    $1->son.push_back(unique_ptr<BaseAST>($3));
+    $$ = $1;
+  }
+  ;
+
+VarDef  
+  : IDENT '=' Exp {
+    auto ast = new VarDefAST();
+    ast->state = 1;
+    ast->var = *unique_ptr<string>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | IDENT {
+    auto ast = new VarDefAST();
+    ast->state = 2;
+    ast->var = *unique_ptr<string>($1);
     $$ = ast;
   }
   ;
