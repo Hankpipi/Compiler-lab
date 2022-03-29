@@ -9,15 +9,18 @@ std::string GenVar(int num) {
 }
 
 std::string CompUnitAST::GenIR() const {
-    return func_def->GenIR() + '\n';
+    printf("%s\n", func_def->GenIR().c_str());
+    return "";
 }
 
 std::string FuncDefAST::GenIR() const {
-        std::string ret = "";
-        ret += "fun @" + ident + "(): ";
-        ret += func_type->GenIR() + " {\n";
-        ret += block->GenIR() + "}\n";
-        return ret;
+    std::string ret = "";
+    ret += "fun @" + ident + "(): ";
+    ret += func_type->GenIR() + " {\n";
+    printf("%s", ret.c_str());
+    block->GenIR();
+    printf("}\n");
+    return "";
 }
 
 std::string FuncTypeAST::GenIR() const {
@@ -28,11 +31,15 @@ std::string FuncTypeAST::GenIR() const {
 }
 
 std::string BlockAST::GenIR() const {
-    return "%entry:\n" + stmt->GenIR();
+    printf("%%entry:\n");
+    stmt->GenIR();
+    return "";
 }
 
 std::string StmtAST::GenIR() const {
-    return exp->GenIR() + "  ret %" + std::to_string(id - 1) + "\n";
+    std::string res = exp->GenIR();
+    printf("  ret %s\n", res.c_str());
+    return "";
 }
 
 std::string ExpAST::GenIR() const {
@@ -42,72 +49,70 @@ std::string ExpAST::GenIR() const {
 std::string PrimaryExpAST::GenIR() const {
     if (state == 1)
         return exp->GenIR();
-    return "  %" + std::to_string(id++) + " = add 0, " + std::to_string(number) + "\n";
+    return std::to_string(number);
 }
 
 std::string UnaryExpAST::GenIR() const {
     if(state == 1)
         return primary_exp->GenIR();
 
-    std::string ret = "";
-    ret += unary_exp->GenIR();
+    std::string ret = unary_exp->GenIR(), inst = "";
     if(op == "!") {
-        ret += "  %" + std::to_string(id) + " = ";
-        ret += "eq %" + std::to_string(id - 1) + ", 0" + "\n";
-        id += 1;
+        inst += "  %" + std::to_string(id) + " = ";
+        inst += "eq " + ret + ", 0" + "\n";
     }
     else if(op == "-") {
-        ret += "  %" + std::to_string(id) + " = ";
-        ret += "sub 0, %" + std::to_string(id - 1) + "\n";
-        id += 1;
-    }
-    return ret;
+        inst += "  %" + std::to_string(id) + " = ";
+        inst += "sub 0, " + ret + "\n";
+    } 
+    else if (op == "+")
+        return ret;
+    printf("%s", inst.c_str());
+    return GenVar(id++);
 }
 
 std::string TupleExpAST::GenIR() const {
     if(state == 1)
         return dst->GenIR();
-    std::string ret = "";
-    ret += src->GenIR();
-    int src = id - 1;
-    ret += dst->GenIR();
-    int dst = id - 1;
+    std::string ls = src->GenIR();
+    std::string rs = dst->GenIR();
 
     std::string inst = "  " + GenVar(id++);
     if(op == "*")
-        inst += " = mul %";
+        inst += " = mul ";
     else if (op == "/")
-        inst += " = div %";
+        inst += " = div ";
     else if (op == "%")
-        inst += " = mod %";
+        inst += " = mod ";
     else if(op == "+")
-        inst += " = add %";
+        inst += " = add ";
     else if (op == "-")
-        inst += " = sub %";
+        inst += " = sub ";
     else if (op == "==")
-        inst += " = eq %";
+        inst += " = eq ";
     else if (op == "!=")
-        inst += " = ne %";
+        inst += " = ne ";
     else if (op == ">")
-        inst += " = gt %";
+        inst += " = gt ";
     else if (op == ">=")
-        inst += " = ge %";
+        inst += " = ge ";
     else if (op == "<")
-        inst += " = lt %";
+        inst += " = lt ";
     else if (op == "<=")
-        inst += " = le %";
+        inst += " = le ";
     else {
-        ret += inst + " = ne %" + std::to_string(src) + ", 0\n";
-        src = id - 1;
-        ret += "  " + GenVar(id++) + " = ne %" + std::to_string(dst) + ", 0\n";
-        dst = id - 1;
-        inst = "  " + GenVar(id++);
+        inst += " = ne " + ls + ", 0\n";
+        ls = GenVar(id - 1);
+        inst += "  " + GenVar(id++) + " = ne " + rs + ", 0\n";
+        rs = GenVar(id - 1);
+        inst += "  " + GenVar(id++);
         if (op == "&&")
-            inst += " = and %";
+            inst += " = and ";
         else if (op == "||")
-            inst += " = or %";
+            inst += " = or ";
     }
 
-    ret += inst + std::to_string(src) + ", %" + std::to_string(dst) + "\n";
-    return ret;
+    inst += ls + ", " + rs + "\n";
+    printf("%s", inst.c_str());
+    return GenVar(id - 1);
 }

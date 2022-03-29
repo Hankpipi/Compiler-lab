@@ -8,7 +8,7 @@
 #include "riscv.h"
 
 using namespace std;
-
+char ir_str[10000] = {0}, tmp[500];
 // 声明 lexer 的输入, 以及 parser 函数
 // 为什么不引用 sysy.tab.hpp 呢? 因为首先里面没有 yyin 的定义
 // 其次, 因为这个文件不是我们自己写的, 而是被 Bison 生成出来的
@@ -34,14 +34,24 @@ int main(int argc, const char *argv[]) {
   auto ret = yyparse(ast);
   assert(!ret);
 
-  std::string ir = ast->GenIR();
-  freopen(output, "w", stdout);
-  if(strcmp(mode, "-koopa") == 0)
-    cout << ir;
+  if(strcmp(mode, "-koopa") == 0) {
+      freopen(output, "w", stdout);
+      ast->GenIR();
+  }
   else {
+    freopen("koopa.txt", "w", stdout);
+    ast->GenIR();
+    freopen(output, "w", stdout);
+    FILE* fp = fopen("koopa.txt", "r");
+    int len = 0;
+    while(fgets(tmp, 500, fp) != NULL) {
+      memcpy(ir_str + len, tmp, strlen(tmp));
+      len += strlen(tmp);
+    }
+    fclose(fp);
     // 解析字符串 str, 得到 Koopa IR 程序
     koopa_program_t program;
-    koopa_error_code_t ret = koopa_parse_from_string(ir.c_str(), &program);
+    koopa_error_code_t ret = koopa_parse_from_string(ir_str, &program);
     assert(ret == KOOPA_EC_SUCCESS);  // 确保解析时没有出错
     // 创建一个 raw program builder, 用来构建 raw program
     koopa_raw_program_builder_t builder = koopa_new_raw_program_builder();
