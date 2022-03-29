@@ -1,15 +1,19 @@
 #ifndef AST_H_
 #define AST_H_
 #include <iostream>
+#include <vector>
 #include <memory>
+#include <cassert>
 #include <map>
 
 // 所有 AST 的基类
 class BaseAST {
  public:
   static int id;
+  std::vector<std::unique_ptr<BaseAST>> son;
   virtual ~BaseAST() = default;
-  virtual std::string GenIR() const {}
+  virtual std::string GenIR() const {return "";}
+  virtual int calc() const { return 0;}
 };
 
 class CompUnitAST : public BaseAST {
@@ -35,7 +39,19 @@ class FuncTypeAST : public BaseAST {
 
 class BlockAST : public BaseAST {
     public:
-    std::unique_ptr<BaseAST> stmt;
+    std::unique_ptr<BaseAST> item;
+    std::string GenIR() const override;
+};
+
+class BlockItemStarAST : public BaseAST {
+    public:
+    std::string GenIR() const override;
+};
+
+class BlockItemAST : public BaseAST {
+    public:
+    int state;
+    std::unique_ptr<BaseAST> item;
     std::string GenIR() const override;
 };
 
@@ -49,14 +65,16 @@ class ExpAST : public BaseAST {
  public:
     std::unique_ptr<BaseAST> tuple_exp;
     std::string GenIR() const override;
+    int calc() const override;
 };
 
 class PrimaryExpAST : public BaseAST {
  public:
     int state;
-    int number;
-    std::unique_ptr<BaseAST> exp;
+    std::string var;
+    std::unique_ptr<BaseAST> item;
     std::string GenIR() const override;
+    int calc() const override;
 };
 
 class UnaryExpAST : public BaseAST {
@@ -66,6 +84,7 @@ class UnaryExpAST : public BaseAST {
     std::unique_ptr<BaseAST> primary_exp;
     std::unique_ptr<BaseAST> unary_exp;
     std::string GenIR() const override;
+    int calc() const override; 
 };
 
 class TupleExpAST : public BaseAST {
@@ -75,7 +94,32 @@ class TupleExpAST : public BaseAST {
     std::unique_ptr<BaseAST> src;
     std::unique_ptr<BaseAST> dst;
     std::string GenIR() const override;
+    int calc() const override;
 };
 
+class DeclAST : public BaseAST {
+ public:
+    int state;
+    std::unique_ptr<BaseAST> sub_decl;
+    std::string GenIR() const override;
+};
+
+class ConstDeclAST : public BaseAST {
+ public:
+    std::unique_ptr<BaseAST> def;
+    std::string GenIR() const override;
+};
+
+class ConstDefStarAST : public BaseAST {
+ public:
+    std::string GenIR() const override;
+};
+
+class ConstDefAST : public BaseAST {
+ public:
+    std::string var;
+    std::unique_ptr<BaseAST> exp;
+    std::string GenIR() const override;
+};
 
 #endif

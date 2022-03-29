@@ -38,12 +38,13 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN
+%token INT RETURN CONST
 %token <str_val> IDENT UNARY_OP MUL_OP REL_OP EQ_OP OR_OP AND_OP
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt PrimaryExp Exp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
+%type <ast_val> Decl ConstDecl ConstDefStar ConstDef BlockItemStar BlockItem
 %type <int_val> Number
 
 %%
@@ -91,9 +92,36 @@ FuncType
   ;
 
 Block
-  : '{' Stmt '}' {
+  : '{' BlockItemStar '}' {
     auto ast = new BlockAST();
-    ast->stmt = unique_ptr<BaseAST>($2);
+    ast->item = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+BlockItemStar
+  : BlockItemStar BlockItem {
+    $1->son.push_back(unique_ptr<BaseAST>($2));
+    $$ = $1;
+  }
+  | BlockItem {
+    auto ast = new BlockItemStarAST();
+    ast->son.push_back(unique_ptr<BaseAST>($1));
+    $$ = ast;
+  }
+  ;
+
+BlockItem   
+  : Decl {
+    auto ast = new BlockItemAST();
+    ast->state = 1;
+    ast->item = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Stmt {
+    auto ast = new BlockItemAST();
+    ast->state = 2;
+    ast->item = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -140,13 +168,19 @@ PrimaryExp
   : '(' Exp ')' {
     auto ast = new PrimaryExpAST();
     ast->state = 1;
-    ast->exp = unique_ptr<BaseAST>($2);
+    ast->item = unique_ptr<BaseAST>($2);
     $$ = ast;
   } 
   | Number {
     auto ast = new PrimaryExpAST();
     ast->state = 2;
-    ast->number = $1;
+    ast->var = to_string($1);
+    $$ = ast;
+  }
+  | IDENT {
+    auto ast = new PrimaryExpAST();
+    ast->state = 3;
+    ast->var = *unique_ptr<string>($1);
     $$ = ast;
   }
   ;
@@ -249,6 +283,50 @@ RelExp
     ast->src = unique_ptr<BaseAST>($1);
     ast->op = *unique_ptr<string>($2);
     ast->dst = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+Decl
+  : ConstDecl {
+    auto ast = new DeclAST();
+    ast->state = 1;
+    ast->sub_decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+//  | VarDecl {
+//    auto ast = new DeclAST();
+//    ast->state = 2;
+//    ast->sub_decl = unique_ptr<BaseAST>($1);
+//    $$ = ast;
+//  }
+  ;
+
+ConstDecl
+  : CONST INT ConstDefStar ';' {
+    auto ast = new ConstDeclAST();
+    ast->def = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+ConstDefStar   
+  : ConstDef {
+    auto ast = new ConstDefStarAST();
+    ast->son.push_back(unique_ptr<BaseAST>($1));
+    $$ = ast;
+  }
+  | ConstDefStar ',' ConstDef {
+    $1->son.push_back(unique_ptr<BaseAST>($3));
+    $$ = $1;
+  }
+  ;
+
+ConstDef  
+  : IDENT '=' Exp {
+    auto ast = new ConstDefAST();
+    ast->var = *unique_ptr<string>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;

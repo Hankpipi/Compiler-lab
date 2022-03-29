@@ -1,8 +1,7 @@
 #include <ast.h>
-#include <memory>
-#include <map>
 
 int BaseAST::id = 0;
+std::map<std::string, std::string> table;
 
 std::string GenVar(int num) {
     return "%" + std::to_string(num);
@@ -26,14 +25,24 @@ std::string FuncDefAST::GenIR() const {
 std::string FuncTypeAST::GenIR() const {
     if (type == "int")
         return "i32";
-    else 
-        std::cout << "error: not implement!";
+    else assert(false);
 }
 
 std::string BlockAST::GenIR() const {
     printf("%%entry:\n");
-    stmt->GenIR();
+    item->GenIR();
     return "";
+}
+
+std::string BlockItemStarAST::GenIR() const {
+    int n = son.size();
+    for(int i = 0; i < n; ++i)
+        son[i]->GenIR();
+    return "";
+}
+
+std::string BlockItemAST::GenIR() const {
+    return item->GenIR();
 }
 
 std::string StmtAST::GenIR() const {
@@ -48,8 +57,11 @@ std::string ExpAST::GenIR() const {
 
 std::string PrimaryExpAST::GenIR() const {
     if (state == 1)
-        return exp->GenIR();
-    return std::to_string(number);
+        return item->GenIR();
+    if (state == 2)
+        return var;
+    assert(table.find(var) != table.end());
+    return table[var];
 }
 
 std::string UnaryExpAST::GenIR() const {
@@ -115,4 +127,70 @@ std::string TupleExpAST::GenIR() const {
     inst += ls + ", " + rs + "\n";
     printf("%s", inst.c_str());
     return GenVar(id - 1);
+}
+
+std::string DeclAST::GenIR() const {
+    return sub_decl->GenIR();
+}
+
+std::string ConstDeclAST::GenIR() const {
+    return def->GenIR();
+}
+
+std::string ConstDefStarAST::GenIR() const {
+    int n = son.size();
+    for(int i = 0; i < n; ++i)
+        son[i]->GenIR();
+    return "";
+}
+
+std::string ConstDefAST::GenIR() const {
+    assert(table.find(var) == table.end());
+    table[var] = std::to_string(exp->calc());
+    return "";
+}
+
+int ExpAST::calc() const {
+    return tuple_exp->calc();
+}
+
+int PrimaryExpAST::calc() const {
+    if(state == 1) return item->calc();
+    if(state == 3)
+        assert(table.find(var) != table.end());
+    std::string num = (state == 2? var: table[var]);
+    int ret = 0;
+    for(int i = 0, n = num.length(); i < n; ++i)
+        ret = ret * 10 + num[i] - 48;
+    return ret;
+}
+
+int UnaryExpAST::calc() const {
+    if(state == 1)
+        return primary_exp->calc();
+    int val = unary_exp->calc();
+    if(op == "-") return -val;
+    if(op == "!") return !val;
+    return val;
+}
+
+int TupleExpAST::calc() const {
+    if(state == 1)
+        return dst->calc();
+    int a = src->calc();
+    int b = dst->calc();
+    if (op == "*") return a * b;
+    if (op == "/") return a / b;
+    if (op == "%") return a % b;
+    if (op == "+") return a + b;
+    if (op == "-") return a - b;
+    if (op == "==") return a == b;
+    if (op == "!=") return a != b;
+    if (op == ">") return a > b;
+    if (op == ">=") return a >= b;
+    if (op == "<") return a < b;
+    if (op == "<=") return a <= b;
+    if (op == "&&") return a && b;
+    if (op == "||") return a || b;
+    else assert(false);
 }
