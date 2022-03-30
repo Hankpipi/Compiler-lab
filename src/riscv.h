@@ -17,6 +17,8 @@ void Visit(const koopa_raw_return_t &value);
 void Visit(const koopa_raw_binary_t &binary);
 void Visit(const koopa_raw_store_t &store);
 void Visit(const koopa_raw_load_t &load);
+int CalcS(const koopa_raw_slice_t &slice);
+int CalcS(const koopa_raw_value_t &value);
 
 struct ptrCmp {
 	bool operator() (const char* s1, const char* s2) const {

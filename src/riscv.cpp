@@ -1,10 +1,41 @@
 #include <riscv.h>
 
 map<const char*, int, ptrCmp> table;
-int id = 0;
 const char* reg[15] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 int st[105];
-int top = 0, now = 0;
+int cnt = 0, top = 0;
+
+int CalcS(const koopa_raw_value_t &value) {
+  const auto &kind = value->kind;
+  switch (kind.tag) {
+    case KOOPA_RVT_BINARY:
+        return 12;
+    case KOOPA_RVT_LOAD:
+        return 4;
+    default:
+        break;
+  }
+  return 0;
+}
+
+int CalcS(const koopa_raw_slice_t &slice) {
+  int ret = 0;
+  for (size_t i = 0; i < slice.len; ++i) {
+    auto ptr = slice.buffer[i];
+    // 根据 slice 的 kind 决定将 ptr 视作何种元素
+    switch (slice.kind) {
+        case KOOPA_RSIK_BASIC_BLOCK:
+          // 访问基本块
+            ret += CalcS(reinterpret_cast<koopa_raw_basic_block_t>(ptr)->insts);
+            break;
+        case KOOPA_RSIK_VALUE:
+            ret += CalcS(reinterpret_cast<koopa_raw_value_t>(ptr));
+        default:
+            break;
+    }
+  }
+  return ret;
+}
 
 // 访问 raw program
 void Visit(const koopa_raw_program_t &program) {
@@ -44,8 +75,12 @@ void Visit(const koopa_raw_slice_t &slice) {
 void Visit(const koopa_raw_function_t &func) {
 
   printf("%s:\n", func->name + 1);
+  int frame_size = CalcS(func->bbs);
+  printf("  addi sp, sp, -%d\n", frame_size);
   // 访问所有基本块
   Visit(func->bbs);
+  printf("  addi sp, sp, %d\n", frame_size);
+  printf("  ret\n");
 }
 
 // 访问基本块
@@ -70,14 +105,14 @@ void Visit(const koopa_raw_value_t &value) {
         Visit(kind.data.integer);
         break;
     case KOOPA_RVT_BINARY:
-        if(top > 0 && st[top] == 1)
+        if(cnt > 0 && st[cnt] == 1)
             Visit(kind.data.binary);
         break;
     case KOOPA_RVT_STORE:
         Visit(kind.data.store);
         break;
     case KOOPA_RVT_LOAD:
-        if(top > 0 && st[top] == 1)
+        if(cnt > 0 && st[cnt] == 1)
             Visit(kind.data.load);
         break;
     case KOOPA_RVT_ALLOC:
@@ -88,104 +123,99 @@ void Visit(const koopa_raw_value_t &value) {
 }
 
 void Visit(const koopa_raw_return_t &value) {
-    st[++top] = 1;
+    st[++cnt] = 1;
     Visit(value.value);
-    if(id != 8) {
-        int last = (id + 14) % 15;
-        printf("  mv a0, %s\n", reg[last]);
-    }
-    printf("ret\n");
-    top -= 1;
+    printf("  lw a0, %d(sp)\n", top - 4);
+    cnt -= 1;
 }
 
 void Visit(const koopa_raw_integer_t &value) {
-    printf("  li %s, %d\n", reg[id], value.value);
-    id = (id + 1) % 15;
+    printf("  li %s, %d\n", reg[0], value.value);
+    printf("  sw %s, %d(sp)\n", reg[0], top);
+    top += 4;
 }
 
 void Visit(const koopa_raw_binary_t &binary) {
     Visit(binary.lhs);
-    int l = (id + 14) % 15, last;
+    int ls = top - 4;
     Visit(binary.rhs);
-    int r = (id + 14) % 15;
+    printf("  lw %s, %d(sp)\n", reg[0], ls);
+    printf("  lw %s, %d(sp)\n", reg[1], top - 4);
     switch (binary.op) {
         case KOOPA_RBO_NOT_EQ:
-            printf("  xor %s, %s, %s\n", reg[id], reg[l], reg[r]);
-            printf("  snez %s, %s\n", reg[id], reg[id]);
+            printf("  xor %s, %s, %s\n", reg[2], reg[0], reg[1]);
+            printf("  snez %s, %s\n", reg[2], reg[2]);
             break;
         case KOOPA_RBO_EQ:
-            printf("  xor %s, %s, %s\n", reg[id], reg[l], reg[r]);
-            printf("  seqz %s, %s\n", reg[id], reg[id]);
+            printf("  xor %s, %s, %s\n", reg[2], reg[0], reg[1]);
+            printf("  seqz %s, %s\n", reg[2], reg[2]);
             break;
         case KOOPA_RBO_GT:
-            printf("  sgt %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  sgt %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_LT:
-            printf("  slt %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  slt %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_GE:
-            printf("  slt %s, %s, %s\n", reg[id], reg[l], reg[r]);
-            last = id;
-            id = (id + 1) % 15;
-            printf("  xori %s, %s, 1\n", reg[id], reg[last]);
+            printf("  slt %s, %s, %s\n", reg[3], reg[0], reg[1]);
+            printf("  xori %s, %s, 1\n", reg[2], reg[2]);
             break;
         case KOOPA_RBO_LE:
-            printf("  sgt %s, %s, %s\n", reg[id], reg[l], reg[r]);
-            last = id;
-            id = (id + 1) % 15;
-            printf("  xori %s, %s, 1\n", reg[id], reg[last]);
+            printf("  sgt %s, %s, %s\n", reg[3], reg[0], reg[1]);
+            printf("  xori %s, %s, 1\n", reg[2], reg[3]);
             break;
         case KOOPA_RBO_ADD:
-            printf("  add %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  add %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_SUB:
-            printf("  sub %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  sub %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_MUL:
-            printf("  mul %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  mul %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_DIV:
-            printf("  div %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  div %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_MOD:
-            printf("  rem %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  rem %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_AND:
-            printf("  and %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  and %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_OR:
-            printf("  or %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  or %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_XOR:
-            printf("  xor %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  xor %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_SHL:
-            printf("  sll %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  sll %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_SHR:
-            printf("  srl %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  srl %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         case KOOPA_RBO_SAR:
-            printf("  sra %s, %s, %s\n", reg[id], reg[l], reg[r]);
+            printf("  sra %s, %s, %s\n", reg[2], reg[0], reg[1]);
             break;
         default:
             assert(false);
     }
-    id = (id + 1) % 15;
+    printf("  sw %s, %d(sp)\n", reg[2], top);
+    top += 4;
 }
 
 void Visit(const koopa_raw_store_t &store) {
     // printf("In store %d %d\n", store.dest->kind.tag, store.value->kind.tag);
-    st[++top] = 1;
+    st[++cnt] = 1;
     Visit(store.value);
-    int res = (id + 14) % 15;
-    table[store.dest->name] = now;
-    printf("  sw %s, %d(sp)\n", reg[res], now);
-    --top;
-    now += 4;
+    if (table.find(store.dest->name) == table.end())
+        table[store.dest->name] = top - 4;
+    else printf("  sw %s, %d(sp)\n", reg[2], table[store.dest->name]);
+    --cnt;
 }
 
 void Visit(const koopa_raw_load_t &load) {
-    printf("  lw %s, %d(sp)\n", reg[id], table[load.src->name]);
-    id = (id + 1) % 15;
+    printf("  lw %s, %d(sp)\n", reg[2], table[load.src->name]);
+    printf("  sw %s, %d(sp)\n", reg[2], top);
+    top += 4;
 }
