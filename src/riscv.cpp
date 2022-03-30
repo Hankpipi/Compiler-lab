@@ -1,9 +1,10 @@
 #include <riscv.h>
 
+map<const char*, int, ptrCmp> table;
 int id = 0;
 const char* reg[15] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 int st[105];
-int top = 0;
+int top = 0, now = 0;
 
 // 访问 raw program
 void Visit(const koopa_raw_program_t &program) {
@@ -71,6 +72,15 @@ void Visit(const koopa_raw_value_t &value) {
     case KOOPA_RVT_BINARY:
         if(top > 0 && st[top] == 1)
             Visit(kind.data.binary);
+        break;
+    case KOOPA_RVT_STORE:
+        Visit(kind.data.store);
+        break;
+    case KOOPA_RVT_LOAD:
+        if(top > 0 && st[top] == 1)
+            Visit(kind.data.load);
+        break;
+    case KOOPA_RVT_ALLOC:
         break;
     default:
       assert(false);
@@ -161,5 +171,21 @@ void Visit(const koopa_raw_binary_t &binary) {
         default:
             assert(false);
     }
+    id = (id + 1) % 15;
+}
+
+void Visit(const koopa_raw_store_t &store) {
+    // printf("In store %d %d\n", store.dest->kind.tag, store.value->kind.tag);
+    st[++top] = 1;
+    Visit(store.value);
+    int res = (id + 14) % 15;
+    table[store.dest->name] = now;
+    printf("  sw %s, %d(sp)\n", reg[res], now);
+    --top;
+    now += 4;
+}
+
+void Visit(const koopa_raw_load_t &load) {
+    printf("  lw %s, %d(sp)\n", reg[id], table[load.src->name]);
     id = (id + 1) % 15;
 }
