@@ -1,87 +1,96 @@
 #include <ast.h>
 
 int BaseAST::id = 0;
-std::map<std::string, std::string> table;
-std::map<std::string, std::string> vartable;
+int BaseAST::block_id = 0;
 
 std::string GenVar(int num) {
     return "%" + std::to_string(num);
 }
 
-std::string CompUnitAST::GenIR() const {
-    printf("%s\n", func_def->GenIR().c_str());
+std::string CompUnitAST::GenIR(BlockInfo* b) const {
+    printf("%s\n", func_def->GenIR(b).c_str());
     return "";
 }
 
-std::string FuncDefAST::GenIR() const {
+std::string FuncDefAST::GenIR(BlockInfo* b) const {
     std::string ret = "";
     ret += "fun @" + ident + "(): ";
-    ret += func_type->GenIR() + " {\n";
+    ret += func_type->GenIR(b) + " {\n";
     printf("%s", ret.c_str());
-    block->GenIR();
+    block->GenIR(b);
     printf("}\n");
     return "";
 }
 
-std::string FuncTypeAST::GenIR() const {
+std::string FuncTypeAST::GenIR(BlockInfo* b) const {
     if (type == "int")
         return "i32";
     else assert(false);
 }
 
-std::string BlockAST::GenIR() const {
-    printf("%%entry:\n");
-    item->GenIR();
+std::string BlockAST::GenIR(BlockInfo* b) const {
+    if(block_id == 0)
+        printf("%%entry:\n");
+    BlockInfo* blk = new BlockInfo(++block_id);
+    blk->fa = unique_ptr<BlockInfo>(b);
+    item->GenIR(blk);
     return "";
 }
 
-std::string BlockItemStarAST::GenIR() const {
+std::string BlockItemStarAST::GenIR(BlockInfo* b) const {
     int n = son.size();
     for(int i = 0; i < n; ++i)
-        son[i]->GenIR();
+        son[i]->GenIR(b);
     return "";
 }
 
-std::string BlockItemAST::GenIR() const {
-    return item->GenIR();
+std::string BlockItemAST::GenIR(BlockInfo* b) const {
+    if(state <= 2)
+        return item->GenIR(b);
+    return "";
 }
 
-std::string StmtAST::GenIR() const {
+std::string StmtAST::GenIR(BlockInfo* b) const {
     if (state == 1) {
-        std::string res = exp->GenIR();
+        std::string res = exp->GenIR(b);
         printf("  ret %s\n", res.c_str());
     }
-    else {
-        std::string res = exp->GenIR();
-        printf("  store %s, @%s\n", res.c_str(), vartable[var].c_str());
+    else if(state == 2){
+        std::string res = exp->GenIR(b);
+        printf("  store %s, @%s\n", res.c_str(), b->query(var).c_str());
     }
+    else if(state == 4 || state == 6)
+        return exp->GenIR(b);
+    else if(state == 5)
+        printf("  ret\n");
     return "";
 }
 
-std::string ExpAST::GenIR() const {
-    return tuple_exp->GenIR();
+std::string ExpAST::GenIR(BlockInfo* b) const {
+    return tuple_exp->GenIR(b);
 }
 
-std::string PrimaryExpAST::GenIR() const {
+std::string PrimaryExpAST::GenIR(BlockInfo* b) const {
     if (state == 1)
-        return item->GenIR();
+        return item->GenIR(b);
     if (state == 2)
         return var;
-    if (table.find(var) != table.end())
-        return table[var];
-    if (vartable.find(var) != vartable.end()) {
+    if (b->isconst(var))
+        return b->query(var);
+    string value = b->query(var);
+    if (value != "") {
         std::string reg = GenVar(id++);
-        printf("  %s = load @%s\n", reg.c_str(), vartable[var].c_str());
+        printf("  %s = load @%s\n", reg.c_str(), value.c_str());
         return reg;
     }
     assert(false);
 }
 
-std::string UnaryExpAST::GenIR() const {
+std::string UnaryExpAST::GenIR(BlockInfo* b) const {
     if(state == 1)
-        return primary_exp->GenIR();
+        return primary_exp->GenIR(b);
 
-    std::string ret = unary_exp->GenIR(), inst = "";
+    std::string ret = unary_exp->GenIR(b), inst = "";
     if(op == "!") {
         inst += "  %" + std::to_string(id) + " = ";
         inst += "eq " + ret + ", 0" + "\n";
@@ -96,11 +105,11 @@ std::string UnaryExpAST::GenIR() const {
     return GenVar(id++);
 }
 
-std::string TupleExpAST::GenIR() const {
+std::string TupleExpAST::GenIR(BlockInfo* b) const {
     if(state == 1)
-        return dst->GenIR();
-    std::string ls = src->GenIR();
-    std::string rs = dst->GenIR();
+        return dst->GenIR(b);
+    std::string ls = src->GenIR(b);
+    std::string rs = dst->GenIR(b);
 
     std::string inst = "  " + GenVar(id++);
     if(op == "*")
@@ -142,70 +151,69 @@ std::string TupleExpAST::GenIR() const {
     return GenVar(id - 1);
 }
 
-std::string DeclAST::GenIR() const {
-    return sub_decl->GenIR();
+std::string DeclAST::GenIR(BlockInfo* b) const {
+    return sub_decl->GenIR(b);
 }
 
-std::string ConstDefStarAST::GenIR() const {
+std::string ConstDefStarAST::GenIR(BlockInfo* b) const {
     int n = son.size();
     for(int i = 0; i < n; ++i)
-        son[i]->GenIR();
+        son[i]->GenIR(b);
     return "";
 }
 
-std::string VarDefStarAST::GenIR() const {
+std::string VarDefStarAST::GenIR(BlockInfo* b) const {
     int n = son.size();
     for(int i = 0; i < n; ++i)
-        son[i]->GenIR();
+        son[i]->GenIR(b);
     return "";
 }
 
-std::string ConstDefAST::GenIR() const {
-    assert(table.find(var) == table.end());
-    table[var] = std::to_string(exp->calc());
+std::string ConstDefAST::GenIR(BlockInfo* b) const {
+    assert(b->table.find(var) == b->table.end());
+    b->insert(var, std::to_string(exp->calc(b)), 1);
     return "";
 }
 
-std::string VarDefAST::GenIR() const {
-    assert(vartable.find(var) == vartable.end());
-    vartable[var] = "my_" + var;
-    printf("  @%s = alloc i32\n", vartable[var].c_str());
+std::string VarDefAST::GenIR(BlockInfo* b) const {
+    assert(b->table.find(var) == b->table.end());
+    std::string value = var + "_" + b->id;
+    b->insert(var, value, 0);
+    printf("  @%s = alloc i32\n", value.c_str());
     if(state == 1) {
-        std::string res = exp->GenIR();
-        printf("  store %s, @%s\n", res.c_str(), vartable[var].c_str());
+        std::string res = exp->GenIR(b);
+        printf("  store %s, @%s\n", res.c_str(), value.c_str());
     }
     return "";
 }
 
-int ExpAST::calc() const {
-    return tuple_exp->calc();
+int ExpAST::calc(BlockInfo* b) const {
+    return tuple_exp->calc(b);
 }
 
-int PrimaryExpAST::calc() const {
-    if(state == 1) return item->calc();
-    if(state == 3)
-        assert(table.find(var) != table.end());
-    std::string num = (state == 2? var: table[var]);
+int PrimaryExpAST::calc(BlockInfo* b) const {
+    if(state == 1) return item->calc(b);
+    std::string num = (state == 2? var: b->query(var));
     int ret = 0;
     for(int i = 0, n = num.length(); i < n; ++i)
         ret = ret * 10 + num[i] - 48;
     return ret;
 }
 
-int UnaryExpAST::calc() const {
+int UnaryExpAST::calc(BlockInfo* b) const {
     if(state == 1)
-        return primary_exp->calc();
-    int val = unary_exp->calc();
+        return primary_exp->calc(b);
+    int val = unary_exp->calc(b);
     if(op == "-") return -val;
     if(op == "!") return !val;
     return val;
 }
 
-int TupleExpAST::calc() const {
+int TupleExpAST::calc(BlockInfo* blk) const {
     if(state == 1)
-        return dst->calc();
-    int a = src->calc();
-    int b = dst->calc();
+        return dst->calc(blk);
+    int a = src->calc(blk);
+    int b = dst->calc(blk);
     if (op == "*") return a * b;
     if (op == "/") return a / b;
     if (op == "%") return a % b;

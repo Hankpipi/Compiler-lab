@@ -33,14 +33,15 @@ int main(int argc, const char *argv[]) {
   unique_ptr<BaseAST> ast;
   auto ret = yyparse(ast);
   assert(!ret);
+  BlockInfo* b = new BlockInfo(0);
 
   if(strcmp(mode, "-koopa") == 0) {
       freopen(output, "w", stdout);
-      ast->GenIR();
+      ast->GenIR(b);
   }
   else {
     freopen("koopa.txt", "w", stdout);
-    ast->GenIR();
+    ast->GenIR(b);
     freopen(output, "w", stdout);
     FILE* fp = fopen("koopa.txt", "r");
     int len = 0;

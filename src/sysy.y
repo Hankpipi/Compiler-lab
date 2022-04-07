@@ -124,6 +124,11 @@ BlockItem
     ast->item = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
+  | {
+    auto ast = new BlockItemAST();
+    ast->state = 3;
+    $$ = ast;
+  }
   ;
 
 Stmt
@@ -138,6 +143,28 @@ Stmt
     ast->state = 2;
     ast->var = *unique_ptr<string>($1);
     ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST();
+    ast->state = 3;
+    $$ = ast;
+  }
+  | Exp ';' {
+    auto ast = new StmtAST();
+    ast->exp = unique_ptr<BaseAST>($1);
+    ast->state = 4;
+    $$ = ast;
+  }
+  | RETURN ';' {
+    auto ast = new StmtAST();
+    ast->state = 5;
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST();
+    ast->state = 6;
+    ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
