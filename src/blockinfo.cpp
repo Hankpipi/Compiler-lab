@@ -1,7 +1,8 @@
 #include <blockinfo.h>
 
-BlockInfo::BlockInfo(int id) {
-    fa = NULL;
+BlockInfo::BlockInfo(int id, BlockInfo* _fa) {
+    fa = _fa? unique_ptr<BlockInfo>(_fa): NULL;
+    block_in = block_out = block_next = -1;
     this->id = to_string(id);
 }
 

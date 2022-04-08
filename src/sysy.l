@@ -45,6 +45,8 @@ AndOp         "&&"
 "int"           { return INT; }
 "return"        { return RETURN; }
 "const"         { return CONST; }
+"if"            { return IF; }
+"else"          { return ELSE; }
 
 {Identifier}    { yylval.str_val = new string(yytext); return IDENT; }
 

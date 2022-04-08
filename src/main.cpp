@@ -33,7 +33,7 @@ int main(int argc, const char *argv[]) {
   unique_ptr<BaseAST> ast;
   auto ret = yyparse(ast);
   assert(!ret);
-  BlockInfo* b = new BlockInfo(0);
+  BlockInfo* b = new BlockInfo(0, NULL);
 
   if(strcmp(mode, "-koopa") == 0) {
       freopen(output, "w", stdout);

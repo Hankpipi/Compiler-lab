@@ -10,7 +10,7 @@
 // 所有 AST 的基类
 class BaseAST {
  public:
-  static int id, block_id;
+  static int id, elf_id, block_id;
   std::vector<std::unique_ptr<BaseAST>> son;
   virtual ~BaseAST() = default;
   virtual std::string GenIR(BlockInfo*) const {return "";}

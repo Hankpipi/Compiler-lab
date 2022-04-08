@@ -1,6 +1,7 @@
 #include <ast.h>
 
 int BaseAST::id = 0;
+int BaseAST::elf_id = 0;
 int BaseAST::block_id = 0;
 
 std::string GenVar(int num) {
@@ -29,18 +30,16 @@ std::string FuncTypeAST::GenIR(BlockInfo* b) const {
 }
 
 std::string BlockAST::GenIR(BlockInfo* b) const {
-    if(block_id == 0)
-        printf("%%entry:\n");
-    BlockInfo* blk = new BlockInfo(++block_id);
-    blk->fa = unique_ptr<BlockInfo>(b);
-    item->GenIR(blk);
-    return "";
+    if(elf_id == 0) printf("%%entry:\n");
+    BlockInfo* blk = new BlockInfo(++elf_id, b);
+    return item->GenIR(blk);
 }
 
 std::string BlockItemStarAST::GenIR(BlockInfo* b) const {
     int n = son.size();
     for(int i = 0; i < n; ++i)
-        son[i]->GenIR(b);
+        if(son[i]->GenIR(b) == "ret")
+            return "ret";
     return "";
 }
 
@@ -54,15 +53,46 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
     if (state == 1) {
         std::string res = exp->GenIR(b);
         printf("  ret %s\n", res.c_str());
+        return "ret";
     }
     else if(state == 2){
         std::string res = exp->GenIR(b);
         printf("  store %s, @%s\n", res.c_str(), b->query(var).c_str());
     }
-    else if(state == 4 || state == 6)
+    else if(state == 4)
         return exp->GenIR(b);
-    else if(state == 5)
+    else if(state == 5) {
         printf("  ret\n");
+        return "ret";
+    }
+    else if(state == 6)
+        return exp->GenIR(b);
+    else if(state == 7) {
+        std::string res = exp->GenIR(b);
+        int block_if = block_id, block_out = block_id + 1;
+        block_id += 2;
+        printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_out);
+        printf("%%blk%d:\n", block_if);
+        res = son[0]->GenIR(b);
+        if(res != "ret")
+            printf("  jump %%blk%d\n", block_out);
+        printf("%%blk%d:\n", block_out);
+    }
+    else if (state == 8) {
+        std::string res = exp->GenIR(b);
+        int block_if = block_id, block_else = block_id + 1, block_out = block_id + 2;
+        block_id += 3;
+        printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_else);
+        printf("%%blk%d:\n", block_if);
+        res = son[0]->GenIR(b);
+        if(res != "ret")
+            printf("  jump %%blk%d\n", block_out);
+        printf("%%blk%d:\n", block_else);
+        res = son[1]->GenIR(b);
+        if(res != "ret")
+            printf("  jump %%blk%d\n", block_out);
+        printf("%%blk%d:\n", block_out);
+    }
     return "";
 }
 
