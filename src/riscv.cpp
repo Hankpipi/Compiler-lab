@@ -165,7 +165,7 @@ void Visit(const koopa_raw_binary_t &binary) {
             break;
         case KOOPA_RBO_GE:
             printf("  slt %s, %s, %s\n", reg[3], reg[0], reg[1]);
-            printf("  xori %s, %s, 1\n", reg[2], reg[2]);
+            printf("  xori %s, %s, 1\n", reg[2], reg[3]);
             break;
         case KOOPA_RBO_LE:
             printf("  sgt %s, %s, %s\n", reg[3], reg[0], reg[1]);
