@@ -3,7 +3,7 @@
 map<const char*, int, ptrCmp> table;
 const char* reg[15] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
 int st[105];
-int cnt = 0, top = 0;
+int cnt = 0, top = 0, frame_size = 0;
 
 int CalcS(const koopa_raw_value_t &value) {
   const auto &kind = value->kind;
@@ -12,6 +12,8 @@ int CalcS(const koopa_raw_value_t &value) {
         return 12;
     case KOOPA_RVT_LOAD:
         return 4;
+    case KOOPA_RVT_BRANCH:
+        return CalcS(kind.data.branch.cond);
     default:
         break;
   }
@@ -75,20 +77,17 @@ void Visit(const koopa_raw_slice_t &slice) {
 void Visit(const koopa_raw_function_t &func) {
 
   printf("%s:\n", func->name + 1);
-  int frame_size = CalcS(func->bbs);
+  frame_size = CalcS(func->bbs);
   printf("  addi sp, sp, -%d\n", frame_size);
   // 访问所有基本块
   Visit(func->bbs);
-  printf("  addi sp, sp, %d\n", frame_size);
-  printf("  ret\n");
 }
 
 // 访问基本块
 void Visit(const koopa_raw_basic_block_t &bb) {
-  // 执行一些其他的必要操作
-  // ...
-  // 访问所有指令
-  Visit(bb->insts);
+    printf("%s:\n", bb->name + 1);
+    // 访问所有指令
+    Visit(bb->insts);
 }
 
 // 访问指令
@@ -117,6 +116,12 @@ void Visit(const koopa_raw_value_t &value) {
         break;
     case KOOPA_RVT_ALLOC:
         break;
+    case KOOPA_RVT_JUMP:
+        Visit(kind.data.jump);
+        break;
+    case KOOPA_RVT_BRANCH:
+        Visit(kind.data.branch);
+        break;
     default:
       assert(false);
   }
@@ -126,12 +131,14 @@ void Visit(const koopa_raw_return_t &value) {
     st[++cnt] = 1;
     Visit(value.value);
     printf("  lw a0, %d(sp)\n", top - 4);
+    printf("  addi sp, sp, %d\n", frame_size);
+    printf("  ret\n");
     cnt -= 1;
 }
 
 void Visit(const koopa_raw_integer_t &value) {
-    printf("  li %s, %d\n", reg[0], value.value);
-    printf("  sw %s, %d(sp)\n", reg[0], top);
+    printf("  li %s, %d\n", reg[2], value.value);
+    printf("  sw %s, %d(sp)\n", reg[2], top);
     top += 4;
 }
 
@@ -218,4 +225,18 @@ void Visit(const koopa_raw_load_t &load) {
     printf("  lw %s, %d(sp)\n", reg[2], table[load.src->name]);
     printf("  sw %s, %d(sp)\n", reg[2], top);
     top += 4;
+}
+
+void Visit(const koopa_raw_jump_t &jump) {
+    printf("  j %s\n", jump.target->name + 1);
+}
+
+void Visit(const koopa_raw_branch_t &branch) {
+    st[++cnt] = 1;
+    Visit(branch.cond);
+    int res = top - 4;
+    printf("  lw t0, %d(sp)\n", res);
+    printf("  bnez t0, %s\n", branch.true_bb->name + 1);
+    printf("  j %s\n", branch.false_bb->name + 1);
+    --cnt;
 }
