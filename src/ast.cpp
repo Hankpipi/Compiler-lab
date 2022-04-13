@@ -138,6 +138,7 @@ std::string UnaryExpAST::GenIR(BlockInfo* b) const {
     printf("%s", inst.c_str());
     return GenVar(id++);
 }
+
 std::string AndOrAST::GenIR(BlockInfo* b) const {
     if(state == 1)
         return dst->GenIR(b);
