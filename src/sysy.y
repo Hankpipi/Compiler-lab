@@ -271,13 +271,13 @@ AddExp
 
 LOrExp
   : LAndExp {
-    auto ast = new TupleExpAST();
+    auto ast = new AndOrAST();
     ast->state = 1;
     ast->dst = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | LOrExp OR_OP LAndExp {
-    auto ast = new TupleExpAST();
+    auto ast = new AndOrAST();
     ast->state = 2;
     ast->src = unique_ptr<BaseAST>($1);
     ast->op = *unique_ptr<string>($2);
@@ -288,13 +288,13 @@ LOrExp
 
 LAndExp
   : EqExp {
-    auto ast = new TupleExpAST();
+    auto ast = new AndOrAST();
     ast->state = 1;
     ast->dst = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | LAndExp AND_OP EqExp {
-    auto ast = new TupleExpAST();
+    auto ast = new AndOrAST();
     ast->state = 2;
     ast->src = unique_ptr<BaseAST>($1);
     ast->op = *unique_ptr<string>($2);

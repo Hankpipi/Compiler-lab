@@ -100,6 +100,16 @@ class TupleExpAST : public BaseAST {
     int calc(BlockInfo*) const override;
 };
 
+class AndOrAST : public BaseAST {
+ public:
+    int state;
+    std::string op;
+    std::unique_ptr<BaseAST> src;
+    std::unique_ptr<BaseAST> dst;
+    std::string GenIR(BlockInfo*) const override;
+    int calc(BlockInfo*) const override;
+};
+
 class DeclAST : public BaseAST {
  public:
     int state;

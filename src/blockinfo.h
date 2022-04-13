@@ -10,7 +10,7 @@ using namespace std;
 class BlockInfo {
 public:
     string id;
-    int block_in, block_out, block_next;
+    int block_true, block_false;
     map<string, string> table;
     map<string, bool> is_const;
     unique_ptr<BlockInfo> fa;

@@ -68,29 +68,33 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
     else if(state == 6)
         return exp->GenIR(b);
     else if(state == 7) {
-        std::string res = exp->GenIR(b);
         int block_if = block_id, block_out = block_id + 1;
         block_id += 2;
+        b->block_true = block_if, b->block_false = block_out;
+        std::string res = exp->GenIR(b);
+        b->block_true = b->block_false = -1;
         printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_out);
         printf("%%blk%d:\n", block_if);
+
         res = son[0]->GenIR(b);
         if(res != "ret")
             printf("  jump %%blk%d\n", block_out);
         printf("%%blk%d:\n", block_out);
     }
     else if (state == 8) {
-        std::string res = exp->GenIR(b);
         int block_if = block_id, block_else = block_id + 1, block_out = block_id + 2;
         block_id += 3;
+        b->block_true = block_if, b->block_false = block_else;
+        std::string res = exp->GenIR(b);
+        b->block_true = b->block_false = -1;
         printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_else);
         printf("%%blk%d:\n", block_if);
-        res = son[0]->GenIR(b);
-        if(res != "ret")
-            printf("  jump %%blk%d\n", block_out);
+        std::string res0 = son[0]->GenIR(b);
+        if(res0 != "ret") printf("  jump %%blk%d\n", block_out);
         printf("%%blk%d:\n", block_else);
-        res = son[1]->GenIR(b);
-        if(res != "ret")
-            printf("  jump %%blk%d\n", block_out);
+
+        std::string res1 = son[1]->GenIR(b);
+        if(res1 != "ret") printf("  jump %%blk%d\n", block_out);
         printf("%%blk%d:\n", block_out);
     }
     return "";
@@ -134,6 +138,45 @@ std::string UnaryExpAST::GenIR(BlockInfo* b) const {
     printf("%s", inst.c_str());
     return GenVar(id++);
 }
+std::string AndOrAST::GenIR(BlockInfo* b) const {
+    if(state == 1)
+        return dst->GenIR(b);
+    std::string ls = src->GenIR(b);
+
+    printf("  %s = ne %s, 0\n", GenVar(id++).c_str(), ls.c_str());
+    ls = GenVar(id - 1);
+    if(b->block_true != -1 && op == "||") {
+        printf("  br %s, %%blk%d, %%blk%d\n", ls.c_str(), b->block_true, block_id);
+        printf("%%blk%d:\n", block_id++);
+    }
+    else if(b->block_false != -1 && op == "&&") {
+        printf("  %%%d = eq %s, 0\n", id++, ls.c_str());
+        printf("  br %%%d, %%blk%d, %%blk%d\n", id - 1, b->block_false, block_id);
+        printf("%%blk%d:\n", block_id++);
+    }
+
+    std::string rs = dst->GenIR(b);
+    printf("  %s = ne %s, 0\n", GenVar(id++).c_str(), rs.c_str());
+    rs = GenVar(id - 1);
+    printf("  %s", GenVar(id++).c_str());
+    if (op == "&&")
+        printf(" = and ");
+    else if (op == "||")
+        printf(" = or ");
+
+    printf("%s, %s\n", ls.c_str(), rs.c_str());
+    return GenVar(id - 1);
+}
+
+int AndOrAST::calc(BlockInfo* blk) const {
+    if(state == 1)
+        return dst->calc(blk);
+    int a = src->calc(blk);
+    int b = dst->calc(blk);
+    if (op == "&&") return a && b;
+    if (op == "||") return a || b;
+    else assert(false);
+}
 
 std::string TupleExpAST::GenIR(BlockInfo* b) const {
     if(state == 1)
@@ -164,17 +207,8 @@ std::string TupleExpAST::GenIR(BlockInfo* b) const {
         inst += " = lt ";
     else if (op == "<=")
         inst += " = le ";
-    else {
-        inst += " = ne " + ls + ", 0\n";
-        ls = GenVar(id - 1);
-        inst += "  " + GenVar(id++) + " = ne " + rs + ", 0\n";
-        rs = GenVar(id - 1);
-        inst += "  " + GenVar(id++);
-        if (op == "&&")
-            inst += " = and ";
-        else if (op == "||")
-            inst += " = or ";
-    }
+    else 
+        assert(false);
 
     inst += ls + ", " + rs + "\n";
     printf("%s", inst.c_str());
@@ -255,7 +289,5 @@ int TupleExpAST::calc(BlockInfo* blk) const {
     if (op == ">=") return a >= b;
     if (op == "<") return a < b;
     if (op == "<=") return a <= b;
-    if (op == "&&") return a && b;
-    if (op == "||") return a || b;
     else assert(false);
 }
