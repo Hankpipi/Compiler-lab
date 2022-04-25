@@ -3,6 +3,7 @@
 int BaseAST::id = 0;
 int BaseAST::elf_id = 0;
 int BaseAST::block_id = 0;
+bool tmp_defined = false;
 
 std::string GenVar(int num) {
     return "%" + std::to_string(num);
@@ -171,20 +172,24 @@ std::string UnaryExpAST::GenIR(BlockInfo* b) const {
 std::string AndOrAST::GenIR(BlockInfo* b) const {
     if(state == 1)
         return dst->GenIR(b);
+
+    int exp_true = block_id++, exp_false = block_id++;
+
     std::string ls = src->GenIR(b);
-
     printf("  %s = ne %s, 0\n", GenVar(id++).c_str(), ls.c_str());
+    if(!tmp_defined)
+        printf("  @__tmpres = alloc i32\n"), tmp_defined = true;
+    printf("  store %%%d, @__tmpres\n", id - 1);
     ls = GenVar(id - 1);
-    if(b->exp_true != -1 && op == "||") {
-        printf("  br %s, %%blk%d, %%blk%d\n", ls.c_str(), b->exp_true, block_id);
-        printf("%%blk%d:\n", block_id++);
+    if(op == "||") {
+        printf("  br %s, %%blk%d, %%blk%d\n", ls.c_str(), exp_true, exp_false);
     }
-    else if(b->exp_false != -1 && op == "&&") {
+    if(op == "&&") {
         printf("  %%%d = eq %s, 0\n", id++, ls.c_str());
-        printf("  br %%%d, %%blk%d, %%blk%d\n", id - 1, b->exp_false, block_id);
-        printf("%%blk%d:\n", block_id++);
+        printf("  br %%%d, %%blk%d, %%blk%d\n", id - 1, exp_true, exp_false);
     }
 
+    printf("%%blk%d:\n", exp_false);
     std::string rs = dst->GenIR(b);
     printf("  %s = ne %s, 0\n", GenVar(id++).c_str(), rs.c_str());
     rs = GenVar(id - 1);
@@ -195,6 +200,10 @@ std::string AndOrAST::GenIR(BlockInfo* b) const {
         printf(" = or ");
 
     printf("%s, %s\n", ls.c_str(), rs.c_str());
+    printf("  store %%%d, @__tmpres\n", id - 1);
+    printf("  jump %%blk%d\n", exp_true);
+    printf("%%blk%d:\n", exp_true);
+    printf("  %s = load @__tmpres\n", GenVar(id++).c_str());
     return GenVar(id - 1);
 }
 
