@@ -2,18 +2,20 @@
 
 map<const char*, int, ptrCmp> table;
 const char* reg[15] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
-int st[105];
+int st[10005];
 int cnt = 0, top = 0, frame_size = 0;
 
 int CalcS(const koopa_raw_value_t &value) {
   const auto &kind = value->kind;
   switch (kind.tag) {
     case KOOPA_RVT_BINARY:
-        return CalcS(kind.data.binary.lhs) + CalcS(kind.data.binary.rhs) + 4;
+        return 12;
     case KOOPA_RVT_LOAD:
         return 4;
+    case KOOPA_RVT_STORE:
+        return 4;
     case KOOPA_RVT_BRANCH:
-        return CalcS(kind.data.branch.cond);
+        return CalcS(kind.data.branch.cond) + 4;
     case KOOPA_RVT_INTEGER:
         return 4;
     default:
@@ -214,7 +216,6 @@ void Visit(const koopa_raw_binary_t &binary) {
 }
 
 void Visit(const koopa_raw_store_t &store) {
-    // printf("In store %d %d\n", store.dest->kind.tag, store.value->kind.tag);
     st[++cnt] = 1;
     Visit(store.value);
     if (table.find(store.dest->name) == table.end())
