@@ -9,11 +9,13 @@ int CalcS(const koopa_raw_value_t &value) {
   const auto &kind = value->kind;
   switch (kind.tag) {
     case KOOPA_RVT_BINARY:
-        return 12;
+        return CalcS(kind.data.binary.lhs) + CalcS(kind.data.binary.rhs) + 4;
     case KOOPA_RVT_LOAD:
         return 4;
     case KOOPA_RVT_BRANCH:
         return CalcS(kind.data.branch.cond);
+    case KOOPA_RVT_INTEGER:
+        return 4;
     default:
         break;
   }
