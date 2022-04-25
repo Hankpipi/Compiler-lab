@@ -38,7 +38,7 @@ using namespace std;
 
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
-%token INT RETURN CONST IF ELSE
+%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT UNARY_OP MUL_OP REL_OP EQ_OP OR_OP AND_OP
 %token <int_val> INT_CONST
 
@@ -174,12 +174,29 @@ Stmt
     ast->son.push_back(unique_ptr<BaseAST>($5));
     $$ = ast;
   }
-  | IF '(' Exp ')' Stmt ELSE Stmt{
+  | IF '(' Exp ')' Stmt ELSE Stmt {
     auto ast = new StmtAST();
     ast->state = 8;
     ast->exp = unique_ptr<BaseAST>($3);
     ast->son.push_back(unique_ptr<BaseAST>($5));
     ast->son.push_back(unique_ptr<BaseAST>($7));
+    $$ = ast;
+  }
+  | WHILE '(' Exp ')' Stmt {
+    auto ast = new StmtAST();
+    ast->state = 9;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->son.push_back(unique_ptr<BaseAST>($5));
+    $$ = ast;
+  }
+  | BREAK ';' {
+    auto ast = new StmtAST();
+    ast->state = 10;
+    $$ = ast;
+  }
+  | CONTINUE ';' {
+    auto ast = new StmtAST();
+    ast->state = 11;
     $$ = ast;
   }
   ;

@@ -1,8 +1,14 @@
 #include <blockinfo.h>
 
 BlockInfo::BlockInfo(int id, BlockInfo* _fa) {
-    fa = _fa? unique_ptr<BlockInfo>(_fa): NULL;
-    block_true = block_false = -1;
+    if(_fa) {
+        fa = unique_ptr<BlockInfo>(_fa);
+        if(!_fa->block_entry.empty()) {
+            block_entry.push(_fa->block_entry.top());
+            block_out.push(_fa->block_out.top());
+        }
+    }
+    exp_true = exp_false = -1;
     this->id = to_string(id);
 }
 

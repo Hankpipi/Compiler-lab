@@ -68,11 +68,12 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
     else if(state == 6)
         return exp->GenIR(b);
     else if(state == 7) {
+        // IF '(' Exp ')' Stmt
         int block_if = block_id, block_out = block_id + 1;
         block_id += 2;
-        b->block_true = block_if, b->block_false = block_out;
+        b->exp_true = block_if, b->exp_false = block_out;
         std::string res = exp->GenIR(b);
-        b->block_true = b->block_false = -1;
+        b->exp_true = b->exp_false = -1;
         printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_out);
         printf("%%blk%d:\n", block_if);
 
@@ -82,11 +83,12 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
         printf("%%blk%d:\n", block_out);
     }
     else if (state == 8) {
+        // IF '(' Exp ')' Stmt ELSE Stmt
         int block_if = block_id, block_else = block_id + 1, block_out = block_id + 2;
         block_id += 3;
-        b->block_true = block_if, b->block_false = block_else;
+        b->exp_true = block_if, b->exp_false = block_else;
         std::string res = exp->GenIR(b);
-        b->block_true = b->block_false = -1;
+        b->exp_true = b->exp_false = -1;
         printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_else);
         printf("%%blk%d:\n", block_if);
         std::string res0 = son[0]->GenIR(b);
@@ -96,6 +98,33 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
         std::string res1 = son[1]->GenIR(b);
         if(res1 != "ret") printf("  jump %%blk%d\n", block_out);
         printf("%%blk%d:\n", block_out);
+    }
+    else if (state == 9) {
+        // WHILE '(' Exp ')' Stmt
+        int block_entry = block_id, block_body = block_id + 1, block_out = block_id + 2;
+        block_id += 3;
+        printf("  jump %%blk%d\n", block_entry);
+        printf("%%blk%d:\n", block_entry);
+        b->exp_true = block_body, b->exp_false = block_out;
+        b->block_entry.push(block_entry), b->block_out.push(block_out);
+        std::string res = exp->GenIR(b);
+        b->exp_true = b->exp_false = 0;
+        printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_body, block_out);
+        printf("%%blk%d:\n", block_body);
+        res = son[0]->GenIR(b);
+        if(res != "ret") printf("  jump %%blk%d\n", block_entry);
+        printf("%%blk%d:\n", block_out);
+        b->block_entry.pop(), b->block_out.pop();
+    }
+    else if (state == 10) {
+        // BREAK;
+        printf("  jump %%blk%d\n", b->block_out.top());
+        printf("%%blk%d:\n", block_id++);
+    }
+    else if (state == 11) {
+        // CONTINUE;
+        printf("  jump %%blk%d\n", b->block_entry.top());
+        printf("%%blk%d:\n", block_id++);
     }
     return "";
 }
@@ -146,13 +175,13 @@ std::string AndOrAST::GenIR(BlockInfo* b) const {
 
     printf("  %s = ne %s, 0\n", GenVar(id++).c_str(), ls.c_str());
     ls = GenVar(id - 1);
-    if(b->block_true != -1 && op == "||") {
-        printf("  br %s, %%blk%d, %%blk%d\n", ls.c_str(), b->block_true, block_id);
+    if(b->exp_true != -1 && op == "||") {
+        printf("  br %s, %%blk%d, %%blk%d\n", ls.c_str(), b->exp_true, block_id);
         printf("%%blk%d:\n", block_id++);
     }
-    else if(b->block_false != -1 && op == "&&") {
+    else if(b->exp_false != -1 && op == "&&") {
         printf("  %%%d = eq %s, 0\n", id++, ls.c_str());
-        printf("  br %%%d, %%blk%d, %%blk%d\n", id - 1, b->block_false, block_id);
+        printf("  br %%%d, %%blk%d, %%blk%d\n", id - 1, b->exp_false, block_id);
         printf("%%blk%d:\n", block_id++);
     }
 
