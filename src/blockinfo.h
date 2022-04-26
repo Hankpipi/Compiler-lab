@@ -11,7 +11,7 @@ using namespace std;
 class BlockInfo {
 public:
     string id;
-    int exp_true, exp_false;
+    bool created_by_fa;
     stack<int> block_entry, block_out;
     map<string, string> table;
     map<string, string> type;

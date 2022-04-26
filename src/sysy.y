@@ -48,7 +48,7 @@ using namespace std;
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt PrimaryExp Exp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDefStar ConstDef VarDefStar VarDef BlockItemStar BlockItem
-%type <ast_val> FuncFParams FuncFParam FuncRParams CompUnitStar
+%type <ast_val> FuncFParams FuncFParam FuncRParams CompUnitStar MatchedStmt OpenStmt
 %type <int_val> Number
 
 %%
@@ -108,6 +108,7 @@ FuncFParams
     $1->son.push_back(unique_ptr<BaseAST>($3));
     $$ = $1;
   }
+  ;
 
 FuncFParam
   : INT IDENT {
@@ -115,6 +116,7 @@ FuncFParam
     ast->ident = *unique_ptr<string>($2);
     $$ = ast;
   }
+  ;
 
 FuncRParams
   : Exp {
@@ -126,6 +128,7 @@ FuncRParams
     $1->son.push_back(unique_ptr<BaseAST>($3));
     $$ = $1;
   }
+  ;
 
 FuncType
   : INT {
@@ -174,8 +177,16 @@ BlockItem
   }
   ;
 
-Stmt
-  : RETURN Exp ';' {
+MatchedStmt
+  : IF '(' Exp ')' MatchedStmt ELSE MatchedStmt {
+    auto ast = new StmtAST();
+    ast->state = 8;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->son.push_back(unique_ptr<BaseAST>($5));
+    ast->son.push_back(unique_ptr<BaseAST>($7));
+    $$ = ast;
+  }
+  | RETURN Exp ';' {
     auto ast = new StmtAST();
     ast->state = 1;
     ast->exp = unique_ptr<BaseAST>($2);
@@ -210,21 +221,6 @@ Stmt
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | IF '(' Exp ')' Stmt {
-    auto ast = new StmtAST();
-    ast->state = 7;
-    ast->exp = unique_ptr<BaseAST>($3);
-    ast->son.push_back(unique_ptr<BaseAST>($5));
-    $$ = ast;
-  }
-  | IF '(' Exp ')' Stmt ELSE Stmt {
-    auto ast = new StmtAST();
-    ast->state = 8;
-    ast->exp = unique_ptr<BaseAST>($3);
-    ast->son.push_back(unique_ptr<BaseAST>($5));
-    ast->son.push_back(unique_ptr<BaseAST>($7));
-    $$ = ast;
-  }
   | WHILE '(' Exp ')' Stmt {
     auto ast = new StmtAST();
     ast->state = 9;
@@ -241,6 +237,33 @@ Stmt
     auto ast = new StmtAST();
     ast->state = 11;
     $$ = ast;
+  }
+  ;
+
+OpenStmt
+  : IF '(' Exp ')' Stmt {
+    auto ast = new StmtAST();
+    ast->state = 7;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->son.push_back(unique_ptr<BaseAST>($5));
+    $$ = ast;
+  }
+  | IF '(' Exp ')' MatchedStmt ELSE OpenStmt {
+    auto ast = new StmtAST();
+    ast->state = 8;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->son.push_back(unique_ptr<BaseAST>($5));
+    ast->son.push_back(unique_ptr<BaseAST>($7));
+    $$ = ast;
+  }
+  ;
+
+Stmt
+  : OpenStmt {
+    $$ = $1;
+  }
+  | MatchedStmt {
+    $$ = $1;
   }
   ;
 

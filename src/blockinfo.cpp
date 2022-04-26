@@ -8,12 +8,12 @@ BlockInfo::BlockInfo(int id, BlockInfo* _fa) {
             block_out.push(_fa->block_out.top());
         }
     }
-    exp_true = exp_false = -1;
+    created_by_fa = false;
     this->id = to_string(id);
 }
 
 void BlockInfo::insert(string key, string value, string _type) {
-    if(_type == "const" && table.find(key) != table.end())
+    if(_type == "int_const" && table.find(key) != table.end())
         assert(false);
     type[key] = _type;
     table[key] = value;

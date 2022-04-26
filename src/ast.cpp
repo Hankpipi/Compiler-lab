@@ -45,6 +45,7 @@ std::string FuncDefAST::GenIR(BlockInfo* b) const {
 
     // alloc params for function
     BlockInfo* blk = new BlockInfo(++elf_id, b);
+    blk->created_by_fa = true;
     if(son.size() > 0) {
         vector<std::string>params = son[0]->getson(b);
         for(int i = 0, n = params.size(); i < n; ++i) {
@@ -110,11 +111,12 @@ std::string FuncRParamsAST::GenIR(BlockInfo* b) const {
 }
 
 std::string BlockAST::GenIR(BlockInfo* b) const {
-    if(b->fa->fa) {
-        BlockInfo* blk = new BlockInfo(++elf_id, b);
-        return item->GenIR(blk);
+    if(b->created_by_fa) {
+        b->created_by_fa = false;
+        return item->GenIR(b);
     }
-    return item->GenIR(b);
+    BlockInfo* blk = new BlockInfo(++elf_id, b);
+    return item->GenIR(blk);
 }
 
 std::string BlockItemStarAST::GenIR(BlockInfo* b) const {
@@ -151,9 +153,7 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
         // IF '(' Exp ')' Stmt
         int block_if = block_id, block_out = block_id + 1;
         block_id += 2;
-        b->exp_true = block_if, b->exp_false = block_out;
         std::string res = exp->GenIR(b);
-        b->exp_true = b->exp_false = -1;
         printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_out);
         printf("%%blk%d:\n", block_if);
 
@@ -166,9 +166,7 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
         // IF '(' Exp ')' Stmt ELSE Stmt
         int block_if = block_id, block_else = block_id + 1, block_out = block_id + 2;
         block_id += 3;
-        b->exp_true = block_if, b->exp_false = block_else;
         std::string res = exp->GenIR(b);
-        b->exp_true = b->exp_false = -1;
         printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_if, block_else);
         printf("%%blk%d:\n", block_if);
         std::string res0 = son[0]->GenIR(b);
@@ -185,10 +183,8 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
         block_id += 3;
         printf("  jump %%blk%d\n", block_entry);
         printf("%%blk%d:\n", block_entry);
-        b->exp_true = block_body, b->exp_false = block_out;
         b->block_entry.push(block_entry), b->block_out.push(block_out);
         std::string res = exp->GenIR(b);
-        b->exp_true = b->exp_false = 0;
         printf("  br %s, %%blk%d, %%blk%d\n", res.c_str(), block_body, block_out);
         printf("%%blk%d:\n", block_body);
         res = son[0]->GenIR(b);
