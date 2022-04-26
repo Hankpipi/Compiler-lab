@@ -3,6 +3,9 @@
   #include <string>
   #include <ast.h>
 }
+%glr-parser
+%expect 2
+%expect-rr 0
 
 %{
 
@@ -62,7 +65,16 @@ CompUnitStar
     ast->son.push_back(unique_ptr<BaseAST>($1));
     $$ = ast;
   }
+  | Decl {
+    auto ast = new CompUnitAST();
+    ast->son.push_back(unique_ptr<BaseAST>($1));
+    $$ = ast;    
+  }
   | CompUnitStar FuncDef {
+    $1->son.push_back(unique_ptr<BaseAST>($2));
+    $$ = $1;
+  }
+  | CompUnitStar Decl {
     $1->son.push_back(unique_ptr<BaseAST>($2));
     $$ = $1;
   }
@@ -115,7 +127,6 @@ FuncRParams
     $$ = $1;
   }
 
-// 同上, 不再解释
 FuncType
   : INT {
     auto ast = new FuncTypeAST();
@@ -142,9 +153,8 @@ BlockItemStar
     $1->son.push_back(unique_ptr<BaseAST>($2));
     $$ = $1;
   }
-  | BlockItem {
+  | {
     auto ast = new BlockItemStarAST();
-    ast->son.push_back(unique_ptr<BaseAST>($1));
     $$ = ast;
   }
   ;
@@ -160,11 +170,6 @@ BlockItem
     auto ast = new BlockItemAST();
     ast->state = 2;
     ast->item = unique_ptr<BaseAST>($1);
-    $$ = ast;
-  }
-  | {
-    auto ast = new BlockItemAST();
-    ast->state = 3;
     $$ = ast;
   }
   ;

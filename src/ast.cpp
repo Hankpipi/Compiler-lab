@@ -10,6 +10,23 @@ std::string GenVar(int num) {
 }
 
 std::string CompUnitAST::GenIR(BlockInfo* b) const {
+    printf("decl @getint(): i32\n");
+    printf("decl @getch(): i32\n");
+    printf("decl @getarray(*i32): i32\n");
+    printf("decl @putint(i32)\n");
+    printf("decl @putch(i32)\n");
+    printf("decl @putarray(i32, *i32)\n");
+    printf("decl @starttime()\n");
+    printf("decl @stoptime()\n\n");
+    b->insert("getint", "getint", "int_func");
+    b->insert("getch", "getch", "int_func");
+    b->insert("getarray", "getarray", "int_func");
+    b->insert("putint", "putint", "void_func");
+    b->insert("putch", "putch", "void_func");
+    b->insert("putarray", "putarray", "void_func");
+    b->insert("starttime", "starttime", "void_func");
+    b->insert("stoptime", "stoptime", "void_func");
+
     int n = son.size();
     for(int i = 0; i < n; ++i)
         son[i]->GenIR(b);
@@ -31,7 +48,7 @@ std::string FuncDefAST::GenIR(BlockInfo* b) const {
     if(son.size() > 0) {
         vector<std::string>params = son[0]->getson(b);
         for(int i = 0, n = params.size(); i < n; ++i) {
-            std::string value = "%" + params[i] + "_" + b->id;
+            std::string value = "%" + params[i] + "_" + blk->id;
             auto name = value.c_str();
             printf("  %s = alloc i32\n", name);
             printf("  store @%s, %s\n", params[i].c_str(), name);
@@ -109,9 +126,7 @@ std::string BlockItemStarAST::GenIR(BlockInfo* b) const {
 }
 
 std::string BlockItemAST::GenIR(BlockInfo* b) const {
-    if(state <= 2)
-        return item->GenIR(b);
-    return "";
+    return item->GenIR(b);
 }
 
 std::string StmtAST::GenIR(BlockInfo* b) const {
@@ -357,11 +372,17 @@ std::string VarDefAST::GenIR(BlockInfo* b) const {
     assert(b->table.find(var) == b->table.end());
     std::string value = "@" + var + "_" + b->id;
     b->insert(var, value, "int_var");
-    printf("  %s = alloc i32\n", value.c_str());
-    if(state == 1) {
-        std::string res = exp->GenIR(b);
-        printf("  store %s, %s\n", res.c_str(), value.c_str());
+    if(b->fa) {
+        printf("  %s = alloc i32\n", value.c_str());
+        if(state == 1) {
+            std::string res = exp->GenIR(b);
+            printf("  store %s, %s\n", res.c_str(), value.c_str());
+        }
+        return "";
     }
+    std::string res = "zeroinit";
+    if(state == 1) res = to_string(exp->calc(b));
+    printf("global %s = alloc i32, %s\n", value.c_str(), res.c_str());
     return "";
 }
 
