@@ -12,10 +12,10 @@ BlockInfo::BlockInfo(int id, BlockInfo* _fa) {
     this->id = to_string(id);
 }
 
-void BlockInfo::insert(string key, string value, bool _is_const) {
-    if(_is_const && table.find(key) != table.end())
+void BlockInfo::insert(string key, string value, string _type) {
+    if(_type == "const" && table.find(key) != table.end())
         assert(false);
-    is_const[key] = _is_const;
+    type[key] = _type;
     table[key] = value;
 }
 
@@ -29,8 +29,8 @@ string BlockInfo::query(string key) {
     assert(false);
 }
 
-bool BlockInfo::isconst(string key) {
-    if(is_const.find(key) == is_const.end())
-        return fa? fa->isconst(key) : false;
-    return is_const[key];
+string BlockInfo::qtype(string key) {
+    if(type.find(key) == type.end())
+        return fa? fa->qtype(key) : "";
+    return type[key];
 }

@@ -15,26 +15,44 @@ class BaseAST {
   virtual ~BaseAST() = default;
   virtual std::string GenIR(BlockInfo*) const {return "";}
   virtual int calc(BlockInfo*) const { return 0;}
+  virtual vector<std::string> getson(BlockInfo*) const { 
+      return vector<std::string>();
+  }
 };
 
 class CompUnitAST : public BaseAST {
  public:
-    std::unique_ptr<BaseAST> func_def;
-    std::string GenIR(BlockInfo*) const override;
-};
-
-// FuncDef 也是 BaseAST
-class FuncDefAST : public BaseAST {
- public:
-    std::unique_ptr<BaseAST> func_type;
-    std::string ident;
-    std::unique_ptr<BaseAST> block;
     std::string GenIR(BlockInfo*) const override;
 };
 
 class FuncTypeAST : public BaseAST {
     public:
     std::string type;
+    std::string GenIR(BlockInfo*) const override;
+};
+
+class FuncFParamAST : public BaseAST {
+ public:
+    std::string ident;
+    std::string GenIR(BlockInfo*) const override;
+};
+
+class FuncFParamsAST : public BaseAST {
+ public:
+    std::string GenIR(BlockInfo*) const override;
+    vector<std::string> getson(BlockInfo* b) const override;
+};
+
+class FuncRParamsAST : public BaseAST {
+ public:
+    std::string GenIR(BlockInfo*) const override;
+};
+
+class FuncDefAST : public BaseAST {
+ public:
+    std::unique_ptr<BaseAST> func_type;
+    std::string ident;
+    std::unique_ptr<BaseAST> block;
     std::string GenIR(BlockInfo*) const override;
 };
 

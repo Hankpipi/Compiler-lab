@@ -50,6 +50,7 @@ AndOp         "&&"
 "while"         { return WHILE; }
 "break"         { return BREAK; }
 "continue"      { return CONTINUE; }
+"void"          { return VOID; }
 
 {Identifier}    { yylval.str_val = new string(yytext); return IDENT; }
 

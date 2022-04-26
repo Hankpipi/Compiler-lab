@@ -10,30 +10,94 @@ std::string GenVar(int num) {
 }
 
 std::string CompUnitAST::GenIR(BlockInfo* b) const {
-    printf("%s\n", func_def->GenIR(b).c_str());
+    int n = son.size();
+    for(int i = 0; i < n; ++i)
+        son[i]->GenIR(b);
     return "";
 }
 
 std::string FuncDefAST::GenIR(BlockInfo* b) const {
-    std::string ret = "";
-    ret += "fun @" + ident + "(): ";
-    ret += func_type->GenIR(b) + " {\n";
+    std::string ret = "", type = func_type->GenIR(b);
+    ret += "fun @" + ident + "(";
+    if(son.size() > 0)
+        ret += son[0]->GenIR(b);
+    ret += ")";
+    ret += type + " {\n";
     printf("%s", ret.c_str());
-    block->GenIR(b);
+    if(!b->fa) printf("%%entry:\n");
+
+    // alloc params for function
+    BlockInfo* blk = new BlockInfo(++elf_id, b);
+    if(son.size() > 0) {
+        vector<std::string>params = son[0]->getson(b);
+        for(int i = 0, n = params.size(); i < n; ++i) {
+            std::string value = "%" + params[i] + "_" + b->id;
+            auto name = value.c_str();
+            printf("  %s = alloc i32\n", name);
+            printf("  store @%s, %s\n", params[i].c_str(), name);
+            blk->insert(params[i], value, "int_var");
+        }
+    }
+
+    // Insert function into global table
+    b->insert(ident, ident, type == ": i32"? "int_func": "void_func");
+    if(block->GenIR(blk) != "ret")
+        printf("  ret\n");
+    id = 0;
     printf("}\n");
     return "";
 }
 
 std::string FuncTypeAST::GenIR(BlockInfo* b) const {
     if (type == "int")
-        return "i32";
-    else assert(false);
+        return ": i32";
+    else if(type == "void")
+        return " ";
+    assert(false);
+}
+
+std::string FuncFParamsAST::GenIR(BlockInfo* b) const {
+    std::string ret = "";
+    for(int i = 0, n = son.size(); i < n; ++i) {
+        if(i > 0) ret += ", ";
+        ret += son[i]->GenIR(b);
+    }
+    return ret;
+}
+
+vector<std::string> FuncFParamsAST::getson(BlockInfo* b) const {
+    vector<std::string> ret;
+    for(int i = 0, n = son.size(); i < n; ++i) {
+        std::string tmp = son[i]->GenIR(b);
+        int pos = tmp.find(':', 0);
+        ret.push_back(tmp.substr(1, pos - 1));
+    }
+    return ret;
+}
+
+std::string FuncFParamAST::GenIR(BlockInfo* b) const {
+    return "@" + ident + ": i32";
+}
+
+std::string FuncRParamsAST::GenIR(BlockInfo* b) const {
+    vector<std::string> params;
+    int n = son.size();
+    for(int i = 0; i < n; ++i)
+        params.push_back(son[i]->GenIR(b));
+    std::string ret = "";
+    for(int i = 0; i < son.size(); ++i) {
+        if(i > 0) ret += ", ";
+        ret += params[i];
+    }
+    return ret;
 }
 
 std::string BlockAST::GenIR(BlockInfo* b) const {
-    if(elf_id == 0) printf("%%entry:\n");
-    BlockInfo* blk = new BlockInfo(++elf_id, b);
-    return item->GenIR(blk);
+    if(b->fa->fa) {
+        BlockInfo* blk = new BlockInfo(++elf_id, b);
+        return item->GenIR(blk);
+    }
+    return item->GenIR(b);
 }
 
 std::string BlockItemStarAST::GenIR(BlockInfo* b) const {
@@ -58,7 +122,7 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
     }
     else if(state == 2){
         std::string res = exp->GenIR(b);
-        printf("  store %s, @%s\n", res.c_str(), b->query(var).c_str());
+        printf("  store %s, %s\n", res.c_str(), b->query(var).c_str());
     }
     else if(state == 4)
         return exp->GenIR(b);
@@ -139,12 +203,12 @@ std::string PrimaryExpAST::GenIR(BlockInfo* b) const {
         return item->GenIR(b);
     if (state == 2)
         return var;
-    if (b->isconst(var))
+    if (b->qtype(var) == "int_const")
         return b->query(var);
     string value = b->query(var);
     if (value != "") {
         std::string reg = GenVar(id++);
-        printf("  %s = load @%s\n", reg.c_str(), value.c_str());
+        printf("  %s = load %s\n", reg.c_str(), value.c_str());
         return reg;
     }
     assert(false);
@@ -153,20 +217,31 @@ std::string PrimaryExpAST::GenIR(BlockInfo* b) const {
 std::string UnaryExpAST::GenIR(BlockInfo* b) const {
     if(state == 1)
         return primary_exp->GenIR(b);
-
-    std::string ret = unary_exp->GenIR(b), inst = "";
-    if(op == "!") {
-        inst += "  %" + std::to_string(id) + " = ";
-        inst += "eq " + ret + ", 0" + "\n";
+    if(state == 2) {
+        std::string ret = unary_exp->GenIR(b), inst = "";
+        if(op == "!") {
+            inst += "  %" + std::to_string(id) + " = ";
+            inst += "eq " + ret + ", 0" + "\n";
+        }
+        else if(op == "-") {
+            inst += "  %" + std::to_string(id) + " = ";
+            inst += "sub 0, " + ret + "\n";
+        } 
+        else if (op == "+")
+            return ret;
+        printf("%s", inst.c_str());
+        return GenVar(id++);
     }
-    else if(op == "-") {
-        inst += "  %" + std::to_string(id) + " = ";
-        inst += "sub 0, " + ret + "\n";
-    } 
-    else if (op == "+")
-        return ret;
-    printf("%s", inst.c_str());
-    return GenVar(id++);
+    std::string ret = "", params = "";
+    if(state == 4) 
+        params = unary_exp->GenIR(b);
+    if(b->qtype(op) == "int_func") {
+        ret = GenVar(id++);
+        printf("  %s = ", ret.c_str());
+    }
+    else printf("  ");
+    printf("call @%s(%s)\n", op.c_str(), params.c_str());
+    return ret;
 }
 
 std::string AndOrAST::GenIR(BlockInfo* b) const {
@@ -274,18 +349,18 @@ std::string VarDefStarAST::GenIR(BlockInfo* b) const {
 
 std::string ConstDefAST::GenIR(BlockInfo* b) const {
     assert(b->table.find(var) == b->table.end());
-    b->insert(var, std::to_string(exp->calc(b)), 1);
+    b->insert(var, std::to_string(exp->calc(b)), "int_const");
     return "";
 }
 
 std::string VarDefAST::GenIR(BlockInfo* b) const {
     assert(b->table.find(var) == b->table.end());
-    std::string value = var + "_" + b->id;
-    b->insert(var, value, 0);
-    printf("  @%s = alloc i32\n", value.c_str());
+    std::string value = "@" + var + "_" + b->id;
+    b->insert(var, value, "int_var");
+    printf("  %s = alloc i32\n", value.c_str());
     if(state == 1) {
         std::string res = exp->GenIR(b);
-        printf("  store %s, @%s\n", res.c_str(), value.c_str());
+        printf("  store %s, %s\n", res.c_str(), value.c_str());
     }
     return "";
 }

@@ -14,12 +14,12 @@ public:
     int exp_true, exp_false;
     stack<int> block_entry, block_out;
     map<string, string> table;
-    map<string, bool> is_const;
+    map<string, string> type;
     unique_ptr<BlockInfo> fa;
     BlockInfo(int , BlockInfo*);
     string query(string key);
-    void insert(string key, string value, bool is_const);
-    bool isconst(string key);
+    void insert(string key, string value, string type);
+    string qtype(string key);
 };
 
 #endif
