@@ -9,7 +9,7 @@ std::string GenVar(int num) {
     return "%" + std::to_string(num);
 }
 
-std::string CompUnitAST::GenIR(BlockInfo* b) const {
+std::string CompUnitAST::GenIR(BlockInfo* b) {
     printf("decl @getint(): i32\n");
     printf("decl @getch(): i32\n");
     printf("decl @getarray(*i32): i32\n");
@@ -33,7 +33,7 @@ std::string CompUnitAST::GenIR(BlockInfo* b) const {
     return "";
 }
 
-std::string FuncDefAST::GenIR(BlockInfo* b) const {
+std::string FuncDefAST::GenIR(BlockInfo* b) {
     std::string ret = "", type = func_type->GenIR(b);
     ret += "fun @" + ident + "(";
     if(son.size() > 0)
@@ -66,7 +66,7 @@ std::string FuncDefAST::GenIR(BlockInfo* b) const {
     return "";
 }
 
-std::string FuncTypeAST::GenIR(BlockInfo* b) const {
+std::string FuncTypeAST::GenIR(BlockInfo* b) {
     if (type == "int")
         return ": i32";
     else if(type == "void")
@@ -74,7 +74,7 @@ std::string FuncTypeAST::GenIR(BlockInfo* b) const {
     assert(false);
 }
 
-std::string FuncFParamsAST::GenIR(BlockInfo* b) const {
+std::string FuncFParamsAST::GenIR(BlockInfo* b) {
     std::string ret = "";
     for(int i = 0, n = son.size(); i < n; ++i) {
         if(i > 0) ret += ", ";
@@ -93,11 +93,11 @@ vector<std::string> FuncFParamsAST::getson(BlockInfo* b) const {
     return ret;
 }
 
-std::string FuncFParamAST::GenIR(BlockInfo* b) const {
+std::string FuncFParamAST::GenIR(BlockInfo* b) {
     return "@" + ident + ": i32";
 }
 
-std::string FuncRParamsAST::GenIR(BlockInfo* b) const {
+std::string FuncRParamsAST::GenIR(BlockInfo* b) {
     vector<std::string> params;
     int n = son.size();
     for(int i = 0; i < n; ++i)
@@ -110,7 +110,7 @@ std::string FuncRParamsAST::GenIR(BlockInfo* b) const {
     return ret;
 }
 
-std::string BlockAST::GenIR(BlockInfo* b) const {
+std::string BlockAST::GenIR(BlockInfo* b) {
     if(b->created_by_fa) {
         b->created_by_fa = false;
         return item->GenIR(b);
@@ -119,7 +119,7 @@ std::string BlockAST::GenIR(BlockInfo* b) const {
     return item->GenIR(blk);
 }
 
-std::string BlockItemStarAST::GenIR(BlockInfo* b) const {
+std::string BlockItemStarAST::GenIR(BlockInfo* b) {
     int n = son.size();
     for(int i = 0; i < n; ++i)
         if(son[i]->GenIR(b) == "ret")
@@ -127,19 +127,20 @@ std::string BlockItemStarAST::GenIR(BlockInfo* b) const {
     return "";
 }
 
-std::string BlockItemAST::GenIR(BlockInfo* b) const {
+std::string BlockItemAST::GenIR(BlockInfo* b) {
     return item->GenIR(b);
 }
 
-std::string StmtAST::GenIR(BlockInfo* b) const {
+std::string StmtAST::GenIR(BlockInfo* b) {
     if (state == 1) {
         std::string res = exp->GenIR(b);
         printf("  ret %s\n", res.c_str());
         return "ret";
     }
-    else if(state == 2){
+    else if(state == 2) {
+        std::string var = son[0]->GenIR(b);
         std::string res = exp->GenIR(b);
-        printf("  store %s, %s\n", res.c_str(), b->query(var).c_str());
+        printf("  store %s, %s\n", res.c_str(), var.c_str());
     }
     else if(state == 4)
         return exp->GenIR(b);
@@ -205,27 +206,22 @@ std::string StmtAST::GenIR(BlockInfo* b) const {
     return "";
 }
 
-std::string ExpAST::GenIR(BlockInfo* b) const {
+std::string ExpAST::GenIR(BlockInfo* b) {
     return tuple_exp->GenIR(b);
 }
 
-std::string PrimaryExpAST::GenIR(BlockInfo* b) const {
+std::string PrimaryExpAST::GenIR(BlockInfo* b) {
     if (state == 1)
         return item->GenIR(b);
     if (state == 2)
         return var;
-    if (b->qtype(var) == "int_const")
-        return b->query(var);
-    string value = b->query(var);
-    if (value != "") {
-        std::string reg = GenVar(id++);
-        printf("  %s = load %s\n", reg.c_str(), value.c_str());
-        return reg;
-    }
-    assert(false);
+    string value = son[0]->GenIR(b);
+    std::string reg = GenVar(id++);
+    printf("  %s = load %s\n", reg.c_str(), value.c_str());
+    return reg;
 }
 
-std::string UnaryExpAST::GenIR(BlockInfo* b) const {
+std::string UnaryExpAST::GenIR(BlockInfo* b) {
     if(state == 1)
         return primary_exp->GenIR(b);
     if(state == 2) {
@@ -255,7 +251,7 @@ std::string UnaryExpAST::GenIR(BlockInfo* b) const {
     return ret;
 }
 
-std::string AndOrAST::GenIR(BlockInfo* b) const {
+std::string AndOrAST::GenIR(BlockInfo* b) {
     if(state == 1)
         return dst->GenIR(b);
 
@@ -303,7 +299,7 @@ int AndOrAST::calc(BlockInfo* blk) const {
     else assert(false);
 }
 
-std::string TupleExpAST::GenIR(BlockInfo* b) const {
+std::string TupleExpAST::GenIR(BlockInfo* b) {
     if(state == 1)
         return dst->GenIR(b);
     std::string ls = src->GenIR(b);
@@ -340,45 +336,112 @@ std::string TupleExpAST::GenIR(BlockInfo* b) const {
     return GenVar(id - 1);
 }
 
-std::string DeclAST::GenIR(BlockInfo* b) const {
+std::string DeclAST::GenIR(BlockInfo* b) {
     return sub_decl->GenIR(b);
 }
 
-std::string ConstDefStarAST::GenIR(BlockInfo* b) const {
+std::string ConstDefStarAST::GenIR(BlockInfo* b) {
     int n = son.size();
     for(int i = 0; i < n; ++i)
         son[i]->GenIR(b);
     return "";
 }
 
-std::string VarDefStarAST::GenIR(BlockInfo* b) const {
+std::string VarDefStarAST::GenIR(BlockInfo* b) {
     int n = son.size();
     for(int i = 0; i < n; ++i)
         son[i]->GenIR(b);
     return "";
 }
 
-std::string ConstDefAST::GenIR(BlockInfo* b) const {
+std::string DefAST::GenAggragate(int l, int r, int dep) {
+    if(l == r) return items[l];
+    int tot = 1;
+    for(int i = dep + 1; i < shape.size(); ++i)
+        tot *= shape[i];
+    std::string ret = "";
+    for(int i = l; i + tot - 1 <= r; i += tot) {
+        if(i > l) ret += ", ";
+        ret += GenAggragate(i, i + tot - 1, dep + 1);
+    }
+    return "{" + ret + "}";
+}
+
+void DefAST::ArrayInit(int l, int r, int dep, std::string last) {
+    if(l == r) {
+        printf("  store %s, %s\n", items[l].c_str(), last.c_str());
+        return ;
+    }
+    int tot = 1;
+    for(int i = dep + 1; i < shape.size(); ++i)
+        tot *= shape[i];
+
+    for(int i = l, k = 0; i + tot - 1 <= r; i += tot, ++k) {
+        std::string reg = GenVar(id++);
+        printf("  %s = getelemptr %s, %d\n", reg.c_str(), last.c_str(), k);
+        ArrayInit(i, i + tot - 1, dep + 1, reg);
+    }
+}
+
+std::string ConstDefAST::GenIR(BlockInfo* b) {
     assert(b->table.find(var) == b->table.end());
-    b->insert(var, std::to_string(exp->calc(b)), "int_const");
+    std::string type = son[0]->GenIR(b);
+    std::string name = "@" + var + "_" + b->id;
+    if(type == "i32") {
+        b->insert(var, exp->GenIR(b, 0), "int_const");
+        return "";
+    }
+    b->insert(var, name, "int_array");
+
+    for(int i = 0, n = son[0]->son.size(); i < n; ++i)
+        shape.push_back(son[0]->son[i]->calc(b));
+    exp->shape = shape;
+    exp->GenIR(b, 0);
+    items = exp->items;
+    std::string res = GenAggragate(0, items.size() - 1, 0);
+    if(!b->fa)
+        printf("global %s = alloc %s, %s\n", name.c_str(), type.c_str(), res.c_str());
+    else {
+        printf("  %s = alloc %s\n", name.c_str(), type.c_str());
+        ArrayInit(0, items.size() - 1, 0, name);
+    }
     return "";
 }
 
-std::string VarDefAST::GenIR(BlockInfo* b) const {
+std::string VarDefAST::GenIR(BlockInfo* b) {
     assert(b->table.find(var) == b->table.end());
+    std::string type = son[0]->GenIR(b), res;
     std::string value = "@" + var + "_" + b->id;
-    b->insert(var, value, "int_var");
+    for(int i = 0, n = son[0]->son.size(); i < n; ++i)
+        shape.push_back(son[0]->son[i]->calc(b));
+    if(state == 1) exp->shape = shape;
+    b->insert(var, value, type == "i32"? "int_var": "int_array");
     if(b->fa) {
-        printf("  %s = alloc i32\n", value.c_str());
+        printf("  %s = alloc %s\n", value.c_str(), type.c_str());
         if(state == 1) {
-            std::string res = exp->GenIR(b);
-            printf("  store %s, %s\n", res.c_str(), value.c_str());
+            if(type == "i32") {
+                res = exp->GenIR(b, 0);
+                printf("  store %s, %s\n", res.c_str(), value.c_str());
+            }
+            else {
+                exp->GenIR(b, 0);
+                items = exp->items;
+                res = GenAggragate(0, items.size() - 1, 0);
+                ArrayInit(0, items.size() - 1, 0, value);
+            }
         }
         return "";
     }
-    std::string res = "zeroinit";
-    if(state == 1) res = to_string(exp->calc(b));
-    printf("global %s = alloc i32, %s\n", value.c_str(), res.c_str());
+    res = "zeroinit";
+    if(state == 1) {
+        if(type != "i32") {
+            exp->GenIR(b, 0);
+            items = exp->items;
+            res = GenAggragate(0, items.size() - 1, 0);
+        }
+        else res = exp->GenIR(b, 0);
+    }
+    printf("global %s = alloc %s, %s\n", value.c_str(), type.c_str(), res.c_str());
     return "";
 }
 
@@ -388,7 +451,7 @@ int ExpAST::calc(BlockInfo* b) const {
 
 int PrimaryExpAST::calc(BlockInfo* b) const {
     if(state == 1) return item->calc(b);
-    std::string num = (state == 2? var: b->query(var));
+    std::string num = (state == 2? var: son[0]->GenIR(b));
     int ret = 0;
     for(int i = 0, n = num.length(); i < n; ++i)
         ret = ret * 10 + num[i] - 48;
@@ -421,4 +484,101 @@ int TupleExpAST::calc(BlockInfo* blk) const {
     if (op == "<") return a < b;
     if (op == "<=") return a <= b;
     else assert(false);
+}
+
+std::string LValAST::GenIR(BlockInfo* b) {
+    std::string last = b->query(ident);
+    if(son.size() == 0)
+        return last;
+    for(int i = 0, n = son.size(); i < n; ++i) {
+        std::string now = GenVar(id++), index = son[i]->GenIR(b);;
+        printf("  %s = getelemptr %s, %s\n", now.c_str(), last.c_str(), index.c_str());
+        last = now;
+    }
+    return last;
+}
+
+std::string InitValStarAST::GenIR(BlockInfo* b, int dep) {
+    std::string res, ret = "";
+    int tot = 1, m = shape.size();
+    for(int i = dep; i < m; ++i)
+        tot *= shape[i];
+
+    int next_dep = -1;
+    for(int i = 0, n = son.size(); i < n; ++i) {
+        if(son[i]->state == 1) {
+            res = son[i]->GenIR(b, next_dep);
+            items.push_back(res);
+        }
+        else {
+            son[i]->shape = shape;
+            if(next_dep == -1) {
+                int tmp = tot / shape[dep], sz = items.size();
+                for(int j = dep + 1; j < m; ++j) {
+                    if(sz % tmp == 0) {
+                        next_dep = j;
+                        break;
+                    }
+                    tmp /= shape[j];
+                }
+            }
+            assert(next_dep != -1);
+            res = son[i]->GenIR(b, next_dep);
+            for(int j = 0; j < son[i]->items.size(); ++j)
+                items.push_back(son[i]->items[j]);
+        }
+    }
+    while(items.size() < tot)
+        items.push_back("0");
+    return "";
+}
+
+std::string InitValAST::GenIR(BlockInfo* b, int dep) {
+    if(state == 1)
+        return son[0]->GenIR(b);
+    if(state == 2) {
+        int tot = 1, m = shape.size();
+        for(int i = dep; i < m; ++i)
+            tot *= shape[i];
+        while(items.size() < tot)
+            items.push_back("0");
+        return "{}";
+    }
+    if(state == 3) {
+        son[0]->shape = shape;
+        son[0]->GenIR(b, dep);
+        items = son[0]->items;
+        return "";
+    }
+    assert(false);
+}
+
+std::string ConstInitValAST::GenIR(BlockInfo* b, int dep) {
+    if(state == 1)
+        return to_string(son[0]->calc(b));
+    if(state == 2) {
+        int tot = 1, m = shape.size();
+        for(int i = dep; i < m; ++i)
+            tot *= shape[i];
+        while(items.size() < tot)
+            items.push_back("0");
+        return "{}";
+    }
+    if(state == 3) {
+        son[0]->shape = shape;
+        son[0]->GenIR(b, dep);
+        items = son[0]->items;
+        return "";
+    }
+    assert(false);
+}
+
+std::string ConstExpAST::GenArrayDef(BlockInfo* b, int dep) const {
+    if(dep >= son.size())
+        return "i32";
+    return "[" + GenArrayDef(b, dep + 1) + ", " + to_string(son[dep]->calc(b)) + "]";
+}
+
+std::string ConstExpAST::GenIR(BlockInfo* b) {
+    return GenArrayDef(b, 0);
 }

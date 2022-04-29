@@ -13,6 +13,7 @@ BlockInfo::BlockInfo(int id, BlockInfo* _fa) {
 }
 
 void BlockInfo::insert(string key, string value, string _type) {
+    // cout <<"insert: "<< key << " " << value << endl;
     if(_type == "int_const" && table.find(key) != table.end())
         assert(false);
     type[key] = _type;
@@ -20,6 +21,7 @@ void BlockInfo::insert(string key, string value, string _type) {
 }
 
 string BlockInfo::query(string key) {
+    // cout <<"query: "<< key << endl;
     for(auto& item: table) {
         if(item.first == key)
             return item.second;

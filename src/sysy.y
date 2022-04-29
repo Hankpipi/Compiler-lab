@@ -49,6 +49,7 @@ using namespace std;
 %type <ast_val> FuncDef FuncType Block Stmt PrimaryExp Exp UnaryExp AddExp MulExp RelExp EqExp LAndExp LOrExp
 %type <ast_val> Decl ConstDefStar ConstDef VarDefStar VarDef BlockItemStar BlockItem
 %type <ast_val> FuncFParams FuncFParam FuncRParams CompUnitStar MatchedStmt OpenStmt
+%type <ast_val> ConstInitVal ConstInitValStar ConstExp LVal InitVal InitValStar
 %type <int_val> Number
 
 %%
@@ -192,10 +193,10 @@ MatchedStmt
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
-  | IDENT '=' Exp ';' {
+  | LVal '=' Exp ';' {
     auto ast = new StmtAST();
     ast->state = 2;
-    ast->var = *unique_ptr<string>($1);
+    ast->son.push_back(unique_ptr<BaseAST>($1));
     ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
@@ -323,10 +324,10 @@ PrimaryExp
     ast->var = to_string($1);
     $$ = ast;
   }
-  | IDENT {
+  | LVal {
     auto ast = new PrimaryExpAST();
     ast->state = 3;
-    ast->var = *unique_ptr<string>($1);
+    ast->son.push_back(unique_ptr<BaseAST>($1));
     $$ = ast;
   }
   ;
@@ -459,15 +460,91 @@ ConstDefStar
   ;
 
 ConstDef  
-  : IDENT '=' Exp {
+  : IDENT ConstExp '=' ConstInitVal {
     auto ast = new ConstDefAST();
     ast->var = *unique_ptr<string>($1);
-    ast->exp = unique_ptr<BaseAST>($3);
+    ast->exp = unique_ptr<BaseAST>($4);
+    ast->son.push_back(unique_ptr<BaseAST>($2));
     $$ = ast;
   }
   ;
 
-VarDefStar   
+ConstExp
+  : ConstExp '[' Exp ']' {
+    $1->son.push_back(unique_ptr<BaseAST>($3));
+    $$ = $1;
+  }
+  | {
+    auto ast = new ConstExpAST();
+    $$ = ast;
+  }
+  ;
+
+ConstInitVal
+  : Exp {
+    auto ast = new ConstInitValAST();
+    ast->state = 1;
+    ast->son.push_back(unique_ptr<BaseAST>($1));
+    $$ = ast;
+  }
+  | '{' '}' {
+    auto ast = new ConstInitValAST();
+    ast->state = 2;
+    $$ = ast;
+  } 
+  | '{' ConstInitValStar '}' {
+    auto ast = new ConstInitValAST();
+    ast->state = 3;
+    ast->son.push_back(unique_ptr<BaseAST>($2));
+    $$ = ast;    
+  }
+  ;
+
+InitVal
+  : Exp {
+    auto ast = new InitValAST();
+    ast->state = 1;
+    ast->son.push_back(unique_ptr<BaseAST>($1));
+    $$ = ast;
+  }
+  | '{' '}' {
+    auto ast = new InitValAST();
+    ast->state = 2;
+    $$ = ast;
+  } 
+  | '{' InitValStar '}' {
+    auto ast = new InitValAST();
+    ast->state = 3;
+    ast->son.push_back(unique_ptr<BaseAST>($2));
+    $$ = ast;    
+  }
+  ;
+
+InitValStar
+  : InitVal {
+    auto ast = new InitValStarAST();
+    ast->son.push_back(unique_ptr<BaseAST>($1));  
+    $$ = ast;
+  }
+  | InitValStar ',' InitVal {
+    $1->son.push_back(unique_ptr<BaseAST>($3));
+    $$ = $1;
+  }
+  ;
+
+ConstInitValStar
+  : ConstInitVal {
+    auto ast = new InitValStarAST();
+    ast->son.push_back(unique_ptr<BaseAST>($1));  
+    $$ = ast;
+  }
+  | ConstInitValStar ',' ConstInitVal {
+    $1->son.push_back(unique_ptr<BaseAST>($3));
+    $$ = $1;
+  }
+  ;
+
+VarDefStar
   : VarDef {
     auto ast = new VarDefStarAST();
     ast->son.push_back(unique_ptr<BaseAST>($1));
@@ -480,18 +557,32 @@ VarDefStar
   ;
 
 VarDef  
-  : IDENT '=' Exp {
+  : IDENT ConstExp '=' InitVal {
     auto ast = new VarDefAST();
     ast->state = 1;
     ast->var = *unique_ptr<string>($1);
-    ast->exp = unique_ptr<BaseAST>($3);
+    ast->exp = unique_ptr<BaseAST>($4);
+    ast->son.push_back(unique_ptr<BaseAST>($2));
     $$ = ast;
   }
-  | IDENT {
+  | IDENT ConstExp {
     auto ast = new VarDefAST();
     ast->state = 2;
     ast->var = *unique_ptr<string>($1);
+    ast->son.push_back(unique_ptr<BaseAST>($2));
     $$ = ast;
+  }
+  ;
+
+LVal
+  : IDENT {
+    auto ast = new LValAST();
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  | LVal '[' Exp ']' {
+    $1->son.push_back(unique_ptr<BaseAST>($3));
+    $$ = $1;
   }
   ;
 
