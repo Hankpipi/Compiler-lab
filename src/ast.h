@@ -12,6 +12,7 @@ class BaseAST {
  public:
   static int id, elf_id, block_id;
   int state;
+  std::string ident;
   std::vector<std::unique_ptr<BaseAST>> son;
   std::vector<std::string>items; // save array items
   std::vector<int> shape;
@@ -37,7 +38,6 @@ class FuncTypeAST : public BaseAST {
 
 class FuncFParamAST : public BaseAST {
  public:
-    std::string ident;
     std::string GenIR(BlockInfo*) override;
 };
 
@@ -55,7 +55,6 @@ class FuncRParamsAST : public BaseAST {
 class FuncDefAST : public BaseAST {
  public:
     std::unique_ptr<BaseAST> func_type;
-    std::string ident;
     std::unique_ptr<BaseAST> block;
     std::string GenIR(BlockInfo*) override;
 };
@@ -90,10 +89,16 @@ class ExpAST : public BaseAST {
     int calc(BlockInfo*) const override;
 };
 
+class LValAST : public BaseAST {
+ public:
+    std::string GenIR(BlockInfo*) override;
+};
+
 class PrimaryExpAST : public BaseAST {
  public:
     std::string var;
     std::unique_ptr<BaseAST> item;
+    std::unique_ptr<LValAST> exp;
     std::string GenIR(BlockInfo*) override;
     int calc(BlockInfo*) const override;
 };
@@ -173,12 +178,6 @@ class ConstInitValAST : public BaseAST {
 class InitValStarAST : public BaseAST {
  public:
     std::string GenIR(BlockInfo*, int) override;
-};
-
-class LValAST : public BaseAST {
- public:
-    std::string ident;
-    std::string GenIR(BlockInfo*) override;
 };
 
 class ConstExpAST : public BaseAST {

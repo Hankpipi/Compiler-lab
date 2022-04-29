@@ -48,12 +48,21 @@ std::string FuncDefAST::GenIR(BlockInfo* b) {
     blk->created_by_fa = true;
     if(son.size() > 0) {
         vector<std::string>params = son[0]->getson(b);
-        for(int i = 0, n = params.size(); i < n; ++i) {
-            std::string value = "%" + params[i] + "_" + blk->id;
+        for(int i = 0, n = params.size(); i < n; ++i) { 
+            int pos = params[i].find(':', 0);
+            std::string pname = params[i].substr(1, pos - 1);
+            std::string ptype = params[i].substr(pos + 2);
+            std::string value = "%" + pname + "_" + blk->id;
             auto name = value.c_str();
-            printf("  %s = alloc i32\n", name);
-            printf("  store @%s, %s\n", params[i].c_str(), name);
-            blk->insert(params[i], value, "int_var");
+            printf("  %s = alloc %s\n", name, ptype.c_str());
+            printf("  store @%s, %s\n", pname.c_str(), name);
+            if(ptype == "i32") blk->insert(pname, value, "int_var");
+            else {
+                int dim = 1;
+                for(int j = 0; j < ptype.length(); ++j)
+                    dim += (ptype[j] == '[');
+                blk->insert(pname, value, "int_ptr", dim);
+            }
         }
     }
 
@@ -85,16 +94,15 @@ std::string FuncFParamsAST::GenIR(BlockInfo* b) {
 
 vector<std::string> FuncFParamsAST::getson(BlockInfo* b) const {
     vector<std::string> ret;
-    for(int i = 0, n = son.size(); i < n; ++i) {
-        std::string tmp = son[i]->GenIR(b);
-        int pos = tmp.find(':', 0);
-        ret.push_back(tmp.substr(1, pos - 1));
-    }
+    for(int i = 0, n = son.size(); i < n; ++i)
+        ret.push_back(son[i]->GenIR(b));
     return ret;
 }
 
 std::string FuncFParamAST::GenIR(BlockInfo* b) {
-    return "@" + ident + ": i32";
+    if(state == 1)
+        return "@" + ident + ": i32";
+    return "@" + ident + ": *" + son[0]->GenIR(b);
 }
 
 std::string FuncRParamsAST::GenIR(BlockInfo* b) {
@@ -215,9 +223,16 @@ std::string PrimaryExpAST::GenIR(BlockInfo* b) {
         return item->GenIR(b);
     if (state == 2)
         return var;
-    string value = son[0]->GenIR(b);
+    std::string ret = son[0]->GenIR(b), ident = son[0]->ident;
+    std::string type = b->qtype(ident);
+    int n = son[0]->son.size(), dim = b->qdim(ident);
+
+    if(type == "int_ptr" && n == 0)  
+        return ret;
+
     std::string reg = GenVar(id++);
-    printf("  %s = load %s\n", reg.c_str(), value.c_str());
+    if(dim == n) printf("  %s = load %s\n", reg.c_str(), ret.c_str());
+    else printf("  %s = getelemptr %s, 0\n", reg.c_str(), ret.c_str());
     return reg;
 }
 
@@ -391,10 +406,11 @@ std::string ConstDefAST::GenIR(BlockInfo* b) {
         b->insert(var, exp->GenIR(b, 0), "int_const");
         return "";
     }
-    b->insert(var, name, "int_array");
 
     for(int i = 0, n = son[0]->son.size(); i < n; ++i)
         shape.push_back(son[0]->son[i]->calc(b));
+    
+    b->insert(var, name, "int_array", shape.size());
     exp->shape = shape;
     exp->GenIR(b, 0);
     items = exp->items;
@@ -415,7 +431,9 @@ std::string VarDefAST::GenIR(BlockInfo* b) {
     for(int i = 0, n = son[0]->son.size(); i < n; ++i)
         shape.push_back(son[0]->son[i]->calc(b));
     if(state == 1) exp->shape = shape;
-    b->insert(var, value, type == "i32"? "int_var": "int_array");
+    if(type == "i32") b->insert(var, value, "int_var");
+    else b->insert(var, value, "int_array", shape.size());
+
     if(b->fa) {
         printf("  %s = alloc %s\n", value.c_str(), type.c_str());
         if(state == 1) {
@@ -487,11 +505,20 @@ int TupleExpAST::calc(BlockInfo* blk) const {
 }
 
 std::string LValAST::GenIR(BlockInfo* b) {
-    std::string last = b->query(ident);
-    if(son.size() == 0)
+    std::string last = b->query(ident), type = b->qtype(ident);
+    if(type == "int_const" || type == "int_var")
         return last;
-    for(int i = 0, n = son.size(); i < n; ++i) {
-        std::string now = GenVar(id++), index = son[i]->GenIR(b);;
+
+    int i = 0, n = son.size();
+    if(type == "int_ptr") {
+        std::string index = "0", tmp = GenVar(id++);
+        printf("  %s = load %s\n", tmp.c_str(), last.c_str());
+        last = GenVar(id++);
+        if(n > 0) i = 1, index = son[0]->GenIR(b);
+        printf("  %s = getptr %s, %s\n", last.c_str(), tmp.c_str(), index.c_str());
+    }
+    for(; i < n; ++i) {
+        std::string now = GenVar(id++), index = son[i]->GenIR(b);
         printf("  %s = getelemptr %s, %s\n", now.c_str(), last.c_str(), index.c_str());
         last = now;
     }

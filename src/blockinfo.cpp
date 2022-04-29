@@ -13,15 +13,21 @@ BlockInfo::BlockInfo(int id, BlockInfo* _fa) {
 }
 
 void BlockInfo::insert(string key, string value, string _type) {
-    // cout <<"insert: "<< key << " " << value << endl;
     if(_type == "int_const" && table.find(key) != table.end())
         assert(false);
     type[key] = _type;
     table[key] = value;
 }
 
+void BlockInfo::insert(string key, string value, string _type, int _dim) {
+    if(_type == "int_const" && table.find(key) != table.end())
+        assert(false);
+    type[key] = _type;
+    table[key] = value;
+    dim[key] = _dim;
+}
+
 string BlockInfo::query(string key) {
-    // cout <<"query: "<< key << endl;
     for(auto& item: table) {
         if(item.first == key)
             return item.second;
@@ -35,4 +41,10 @@ string BlockInfo::qtype(string key) {
     if(type.find(key) == type.end())
         return fa? fa->qtype(key) : "";
     return type[key];
+}
+
+int BlockInfo::qdim(string key) {
+    if(dim.find(key) == dim.end())
+        return fa? fa->qdim(key) : 0;
+    return dim[key];
 }

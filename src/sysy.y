@@ -114,6 +114,14 @@ FuncFParams
 FuncFParam
   : INT IDENT {
     auto ast = new FuncFParamAST();
+    ast->state = 1;
+    ast->ident = *unique_ptr<string>($2);
+    $$ = ast;
+  }
+  | INT IDENT '[' ']' ConstExp {
+    auto ast = new FuncFParamAST();
+    ast->state = 2;
+    ast->son.push_back(unique_ptr<BaseAST>($5));
     ast->ident = *unique_ptr<string>($2);
     $$ = ast;
   }
