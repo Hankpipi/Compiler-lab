@@ -18,7 +18,7 @@ class BaseAST {
   std::vector<int> shape;
   virtual ~BaseAST() = default;
   virtual std::string GenIR(BlockInfo*) {return "";}
-  virtual std::string GenIR(BlockInfo*, int) {return "";}
+  virtual std::string GenIR(BlockInfo*, int, int) {return "";}
   virtual int calc(BlockInfo*) const { return 0;}
   virtual vector<std::string> getson(BlockInfo*) const { 
       return vector<std::string>();
@@ -167,17 +167,12 @@ class VarDefAST : public DefAST {
 
 class InitValAST : public BaseAST {
  public:
-    std::string GenIR(BlockInfo*, int) override;
-};
-
-class ConstInitValAST : public BaseAST {
- public:
-    std::string GenIR(BlockInfo*, int) override;
+    std::string GenIR(BlockInfo*, int, int) override;
 };
 
 class InitValStarAST : public BaseAST {
  public:
-    std::string GenIR(BlockInfo*, int) override;
+    std::string GenIR(BlockInfo*, int, int) override;
 };
 
 class ConstExpAST : public BaseAST {

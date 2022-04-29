@@ -227,7 +227,7 @@ std::string PrimaryExpAST::GenIR(BlockInfo* b) {
     std::string type = b->qtype(ident);
     int n = son[0]->son.size(), dim = b->qdim(ident);
 
-    if(type == "int_ptr" && n == 0)  
+    if((type == "int_ptr" && n == 0) || type == "int_const")  
         return ret;
 
     std::string reg = GenVar(id++);
@@ -403,7 +403,7 @@ std::string ConstDefAST::GenIR(BlockInfo* b) {
     std::string type = son[0]->GenIR(b);
     std::string name = "@" + var + "_" + b->id;
     if(type == "i32") {
-        b->insert(var, exp->GenIR(b, 0), "int_const");
+        b->insert(var, exp->GenIR(b, 0, 0), "int_const");
         return "";
     }
 
@@ -412,7 +412,7 @@ std::string ConstDefAST::GenIR(BlockInfo* b) {
     
     b->insert(var, name, "int_array", shape.size());
     exp->shape = shape;
-    exp->GenIR(b, 0);
+    exp->GenIR(b, 0, 0);
     items = exp->items;
     std::string res = GenAggragate(0, items.size() - 1, 0);
     if(!b->fa)
@@ -438,11 +438,11 @@ std::string VarDefAST::GenIR(BlockInfo* b) {
         printf("  %s = alloc %s\n", value.c_str(), type.c_str());
         if(state == 1) {
             if(type == "i32") {
-                res = exp->GenIR(b, 0);
+                res = exp->GenIR(b, 0, 1);
                 printf("  store %s, %s\n", res.c_str(), value.c_str());
             }
             else {
-                exp->GenIR(b, 0);
+                exp->GenIR(b, 0, 1);
                 items = exp->items;
                 res = GenAggragate(0, items.size() - 1, 0);
                 ArrayInit(0, items.size() - 1, 0, value);
@@ -453,11 +453,11 @@ std::string VarDefAST::GenIR(BlockInfo* b) {
     res = "zeroinit";
     if(state == 1) {
         if(type != "i32") {
-            exp->GenIR(b, 0);
+            exp->GenIR(b, 0, 0);
             items = exp->items;
             res = GenAggragate(0, items.size() - 1, 0);
         }
-        else res = exp->GenIR(b, 0);
+        else res = exp->GenIR(b, 0, 0);
     }
     printf("global %s = alloc %s, %s\n", value.c_str(), type.c_str(), res.c_str());
     return "";
@@ -525,7 +525,7 @@ std::string LValAST::GenIR(BlockInfo* b) {
     return last;
 }
 
-std::string InitValStarAST::GenIR(BlockInfo* b, int dep) {
+std::string InitValStarAST::GenIR(BlockInfo* b, int dep, int op) {
     std::string res, ret = "";
     int tot = 1, m = shape.size();
     for(int i = dep; i < m; ++i)
@@ -534,7 +534,7 @@ std::string InitValStarAST::GenIR(BlockInfo* b, int dep) {
     int next_dep = -1;
     for(int i = 0, n = son.size(); i < n; ++i) {
         if(son[i]->state == 1) {
-            res = son[i]->GenIR(b, next_dep);
+            res = son[i]->GenIR(b, next_dep, op);
             items.push_back(res);
         }
         else {
@@ -550,7 +550,7 @@ std::string InitValStarAST::GenIR(BlockInfo* b, int dep) {
                 }
             }
             assert(next_dep != -1);
-            res = son[i]->GenIR(b, next_dep);
+            res = son[i]->GenIR(b, next_dep, op);
             for(int j = 0; j < son[i]->items.size(); ++j)
                 items.push_back(son[i]->items[j]);
         }
@@ -560,9 +560,9 @@ std::string InitValStarAST::GenIR(BlockInfo* b, int dep) {
     return "";
 }
 
-std::string InitValAST::GenIR(BlockInfo* b, int dep) {
+std::string InitValAST::GenIR(BlockInfo* b, int dep, int op) {
     if(state == 1)
-        return son[0]->GenIR(b);
+        return op? son[0]->GenIR(b): to_string(son[0]->calc(b));
     if(state == 2) {
         int tot = 1, m = shape.size();
         for(int i = dep; i < m; ++i)
@@ -573,27 +573,7 @@ std::string InitValAST::GenIR(BlockInfo* b, int dep) {
     }
     if(state == 3) {
         son[0]->shape = shape;
-        son[0]->GenIR(b, dep);
-        items = son[0]->items;
-        return "";
-    }
-    assert(false);
-}
-
-std::string ConstInitValAST::GenIR(BlockInfo* b, int dep) {
-    if(state == 1)
-        return to_string(son[0]->calc(b));
-    if(state == 2) {
-        int tot = 1, m = shape.size();
-        for(int i = dep; i < m; ++i)
-            tot *= shape[i];
-        while(items.size() < tot)
-            items.push_back("0");
-        return "{}";
-    }
-    if(state == 3) {
-        son[0]->shape = shape;
-        son[0]->GenIR(b, dep);
+        son[0]->GenIR(b, dep, op);
         items = son[0]->items;
         return "";
     }

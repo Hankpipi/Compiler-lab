@@ -490,18 +490,18 @@ ConstExp
 
 ConstInitVal
   : Exp {
-    auto ast = new ConstInitValAST();
+    auto ast = new InitValAST();
     ast->state = 1;
     ast->son.push_back(unique_ptr<BaseAST>($1));
     $$ = ast;
   }
   | '{' '}' {
-    auto ast = new ConstInitValAST();
+    auto ast = new InitValAST();
     ast->state = 2;
     $$ = ast;
   } 
   | '{' ConstInitValStar '}' {
-    auto ast = new ConstInitValAST();
+    auto ast = new InitValAST();
     ast->state = 3;
     ast->son.push_back(unique_ptr<BaseAST>($2));
     $$ = ast;    
