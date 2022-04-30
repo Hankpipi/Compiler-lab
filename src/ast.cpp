@@ -374,7 +374,7 @@ std::string VarDefStarAST::GenIR(BlockInfo* b) {
 }
 
 std::string DefAST::GenAggragate(int l, int r, int dep) {
-    if(l == r) return items[l];
+    if(dep == shape.size()) return items[l];
     int tot = 1;
     for(int i = dep + 1; i < shape.size(); ++i)
         tot *= shape[i];
