@@ -17,6 +17,7 @@ void BlockInfo::insert(string key, string value, string _type) {
         assert(false);
     type[key] = _type;
     table[key] = value;
+    dim[key] = 0;
 }
 
 void BlockInfo::insert(string key, string value, string _type, int _dim) {
