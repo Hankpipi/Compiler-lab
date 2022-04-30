@@ -374,7 +374,7 @@ std::string VarDefStarAST::GenIR(BlockInfo* b) {
 }
 
 std::string DefAST::GenAggragate(int l, int r, int dep) {
-    if(dep == shape.size()) return items[l];
+    if(dep >= shape.size()) return items[l];
     int tot = 1;
     for(int i = dep + 1; i < shape.size(); ++i)
         tot *= shape[i];
@@ -387,7 +387,7 @@ std::string DefAST::GenAggragate(int l, int r, int dep) {
 }
 
 void DefAST::ArrayInit(int l, int r, int dep, std::string last) {
-    if(dep == shape.size()) {
+    if(dep >= shape.size()) {
         printf("  store %s, %s\n", items[l].c_str(), last.c_str());
         return ;
     }
@@ -432,8 +432,9 @@ std::string VarDefAST::GenIR(BlockInfo* b) {
     assert(b->table.find(var) == b->table.end());
     std::string type = son[0]->GenIR(b), res;
     std::string value = "@" + var + "_" + b->id;
+    int tot = 1;
     for(int i = 0, n = son[0]->son.size(); i < n; ++i)
-        shape.push_back(son[0]->son[i]->calc(b));
+        shape.push_back(son[0]->son[i]->calc(b)), tot *= shape[i];
     if(state == 1) exp->shape = shape;
     if(type == "i32") b->insert(var, value, "int_var");
     else b->insert(var, value, "int_array", shape.size());
@@ -457,9 +458,11 @@ std::string VarDefAST::GenIR(BlockInfo* b) {
     res = "zeroinit";
     if(state == 1) {
         if(type != "i32") {
-            exp->GenIR(b, 0, 0);
-            items = exp->items;
-            res = GenAggragate(0, items.size() - 1, 0);
+            if(tot != 0) {
+                exp->GenIR(b, 0, 0);
+                items = exp->items;
+                res = GenAggragate(0, items.size() - 1, 0);
+            }
         }
         else res = exp->GenIR(b, 0, 0);
     }
