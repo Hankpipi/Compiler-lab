@@ -547,15 +547,13 @@ std::string InitValStarAST::GenIR(BlockInfo* b, int dep, int op) {
         }
         else {
             son[i]->shape = shape;
-            if(next_dep == -1) {
-                int tmp = tot / shape[dep], sz = items.size();
-                for(int j = dep + 1; j < m; ++j) {
-                    if(sz % tmp == 0) {
-                        next_dep = j;
-                        break;
-                    }
-                    tmp /= shape[j];
+            int tmp = tot / shape[dep], sz = items.size();
+            for(int j = dep + 1; j < m; ++j) {
+                if(sz % tmp == 0) {
+                    next_dep = j;
+                    break;
                 }
+                tmp /= shape[j];
             }
             assert(next_dep != -1);
             res = son[i]->GenIR(b, next_dep, op);
