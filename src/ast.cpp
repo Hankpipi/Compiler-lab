@@ -68,8 +68,10 @@ std::string FuncDefAST::GenIR(BlockInfo* b) {
 
     // Insert function into global table
     b->insert(ident, ident, type == ": i32"? "int_func": "void_func");
-    if(block->GenIR(blk) != "ret")
-        printf("  ret\n");
+    if(block->GenIR(blk) != "ret") {
+        if(type == ": i32") printf("  ret 0\n");
+        else printf("  ret\n");
+    }
     id = 0;
     printf("}\n");
     return "";
@@ -383,7 +385,7 @@ std::string DefAST::GenAggragate(int l, int r, int dep) {
 }
 
 void DefAST::ArrayInit(int l, int r, int dep, std::string last) {
-    if(l == r) {
+    if(dep == shape.size()) {
         printf("  store %s, %s\n", items[l].c_str(), last.c_str());
         return ;
     }
