@@ -276,8 +276,10 @@ std::string AndOrAST::GenIR(BlockInfo* b) {
 
     std::string ls = src->GenIR(b);
     printf("  %s = ne %s, 0\n", GenVar(id++).c_str(), ls.c_str());
-    if(!tmp_defined)
-        printf("  @__tmpres = alloc i32\n"), tmp_defined = true;
+    if(b->qtype("__tmpres") == "") {
+        printf("  @__tmpres = alloc i32\n");
+        b->insert("__tmpres", "@__tmpres", "int_var");
+    }
     printf("  store %%%d, @__tmpres\n", id - 1);
     ls = GenVar(id - 1);
     if(op == "||") {
