@@ -470,10 +470,11 @@ int ExpAST::calc(BlockInfo* b) const {
 int PrimaryExpAST::calc(BlockInfo* b) const {
     if(state == 1) return item->calc(b);
     std::string num = (state == 2? var: son[0]->GenIR(b));
-    int ret = 0;
-    for(int i = 0, n = num.length(); i < n; ++i)
+    int ret = 0, i = 0, sign = 1, n = num.length();
+    if(num[0] == '-') i = 1, sign = -1;
+    for(; i < n; ++i)
         ret = ret * 10 + num[i] - 48;
-    return ret;
+    return ret * sign;
 }
 
 int UnaryExpAST::calc(BlockInfo* b) const {
