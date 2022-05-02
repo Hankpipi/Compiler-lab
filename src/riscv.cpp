@@ -448,7 +448,13 @@ int Visit(const koopa_raw_get_elem_ptr_t &ptr) {
         if(global_table.find(ptr.src->name + 1) == global_table.end()) {
             if(table.find(ptr.src->name) == table.end())
                 assert(false);
-            printf("  addi t0, sp, %d\n", table[ptr.src->name]);
+            int tmp = table[ptr.src->name];
+            if(tmp >= -2048 && tmp <= 2047)
+                printf("  addi t0, sp, %d\n", tmp);
+            else {
+                printf("  li t0, %d\n", tmp);
+                printf("  add t0, t0, sp\n");
+            }
         }
         else 
             printf("  la t0, %s\n", ptr.src->name + 1);
@@ -478,7 +484,13 @@ int Visit(const koopa_raw_get_ptr_t &ptr) {
         if(global_table.find(ptr.src->name + 1) == global_table.end()) {
             if(table.find(ptr.src->name) == table.end())
                 assert(false);
-            printf("  addi t0, sp, %d\n", table[ptr.src->name]);
+            int tmp = table[ptr.src->name];
+            if(tmp >= -2048 && tmp <= 4096)
+                printf("  addi t0, sp, %d\n", tmp);
+            else {
+                printf("  li t0, %d\n", tmp);
+                printf("  add t0, t0, sp\n");
+            }
         }
         else 
             printf("  la t0, %s\n", ptr.src->name + 1);
