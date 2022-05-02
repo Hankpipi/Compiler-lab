@@ -6,8 +6,30 @@ const char* reg[15] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2
 int F = 0, argstop = 0;
 int S = 0, R = 0, A = 0;
 map<koopa_raw_value_t, int> vis;
+map<koopa_raw_value_t, int> vis_cnt;
+
+void store_op(const char *src, const char *dst, int bias) {
+    if(bias >= -2048 && bias <= 2047)
+        printf("  sw %s, %d(%s)\n", src, bias, dst);
+    else {
+        printf("  li t3, %d\n", bias);
+        printf("  add t3, t3, %s\n", dst);
+        printf("  sw %s, 0(t3)\n", src);
+    }
+}
+
+void load_op(const char *dst, const char *src, int bias) {
+    if(bias >= -2048 && bias <= 2047)
+        printf("  lw %s, %d(%s)\n", dst, bias, src);
+    else {
+        printf("  li t3, %d\n", bias);
+        printf("  add t3, t3, %s\n", src);
+        printf("  lw %s, 0(t3)\n", dst);
+    }
+}
 
 void putargs(const koopa_raw_slice_t &slice) {
+  argstop = 0;
   for (size_t i = 0; i < slice.len; ++i) {
     auto ptr = slice.buffer[i];
     int res = 0;
@@ -25,33 +47,58 @@ void putargs(const koopa_raw_slice_t &slice) {
         assert(false);
     }
     if(i < 8)
-        printf("  lw a%zu, %d(sp)\n", i, res);
+        load_op(reg[7 + i], "sp", res);
     else {
-        printf("  lw t1, %d(sp)\n", res);
-        printf("  sw t1, %d(sp)\n", argstop);
+        load_op("t1", "sp", res);
+        store_op("t1", "sp", argstop);
         argstop += 4;
     }
   }
 }
 
+int CalcS(const koopa_raw_type_t &value, int dep) {
+    if(value->tag == KOOPA_RTT_INT32) return 4;
+    if(value->tag == KOOPA_RTT_ARRAY) {
+        int tmp = CalcS(value->data.array.base, dep + 1);
+        if(dep > 0) tmp *= value->data.array.len;
+        return tmp;
+    }
+    if(value->tag == KOOPA_RTT_POINTER)
+        return dep > 0? 4: CalcS(value->data.pointer.base, dep + 1);
+    assert(false);
+}
+
 int CalcS(const koopa_raw_value_t &value) {
+    if(vis_cnt.find(value) != vis_cnt.end()) 
+        return vis_cnt[value]? 4: 0;
+
     const auto &kind = value->kind;
-    if(kind.tag == KOOPA_RVT_BINARY) return 12;
-    if(kind.tag == KOOPA_RVT_LOAD) return 4;
-    if(kind.tag == KOOPA_RVT_STORE) return 4;
-    if(kind.tag == KOOPA_RVT_BRANCH) return 4;
-    if(kind.tag == KOOPA_RVT_INTEGER) return 4;
-    if(kind.tag == KOOPA_RVT_FUNC_ARG_REF) return 4;
-    if(kind.tag == KOOPA_RVT_CALL) {
+    int ret = 0;
+    if(kind.tag == KOOPA_RVT_BINARY) 
+        ret = CalcS(kind.data.binary.lhs) + CalcS(kind.data.binary.rhs) + 4;
+    else if(kind.tag == KOOPA_RVT_LOAD) ret = CalcS(kind.data.load.src) + 4;
+    else if(kind.tag == KOOPA_RVT_STORE) ret = CalcS(kind.data.store.value);
+    else if(kind.tag == KOOPA_RVT_BRANCH) ret = CalcS(kind.data.branch.cond);
+    else if(kind.tag == KOOPA_RVT_INTEGER) ret = 4;
+    else if(kind.tag == KOOPA_RVT_FUNC_ARG_REF) ret = 4;
+    else if(kind.tag == KOOPA_RVT_ALLOC) {
+        if(value->ty->tag == KOOPA_RTT_POINTER)
+            ret = CalcS(value->ty, 0);
+    }
+    else if(kind.tag == KOOPA_RVT_GET_ELEM_PTR) 
+        ret = CalcS(kind.data.get_elem_ptr.src) + CalcS(kind.data.get_elem_ptr.index) + 4;
+    else if(kind.tag == KOOPA_RVT_GET_PTR) 
+        ret = CalcS(kind.data.get_ptr.src) + CalcS(kind.data.get_ptr.index) + 4;
+    else if(kind.tag == KOOPA_RVT_CALL) {
         R = 4;
         const auto& call = kind.data.call;
         A = max(A, max((int)call.args.len - 8, 0) * 4);
-        int ret = call.args.len * 4;
+        ret = call.args.len * 4;
         if(call.callee->ty->data.function.ret->tag == KOOPA_RTT_INT32)
             ret += 4;
-        return ret;
     }
-    return 0;
+    vis_cnt[value] = ret;
+    return ret;
 }
 
 int CalcS(const koopa_raw_slice_t &slice) {
@@ -116,8 +163,15 @@ void Visit(const koopa_raw_function_t &func) {
     F = CalcS(func->bbs);
     F = (F + A + R + 15) / 16 * 16;
     F = F + A + R;
-    if(F) printf("  addi sp, sp, -%d\n", F);
-    if(R) printf("  sw ra, %d(sp)\n", F - 4);
+    if(F) {
+        if(F >= -2048 && F <= 2047)
+            printf("  addi sp, sp, -%d\n", F);
+        else {
+            printf("  li t0, -%d\n", F);
+            printf("  add sp, sp, t0\n");
+        }
+    }
+    if(R) store_op("ra", "sp", F - 4);
     Visit(func->bbs);
     puts("");
 }
@@ -139,11 +193,9 @@ int Visit(const koopa_raw_value_t &value) {
   int ret = 0;
   switch (kind.tag) {
     case KOOPA_RVT_RETURN:
-        // 访问 return 指令
         ret = Visit(kind.data.ret);
         break;
     case KOOPA_RVT_INTEGER:
-        // 访问 integer 指令
         ret = Visit(kind.data.integer);
         break;
     case KOOPA_RVT_BINARY:
@@ -156,7 +208,9 @@ int Visit(const koopa_raw_value_t &value) {
         ret = Visit(kind.data.load);
         break;
     case KOOPA_RVT_ALLOC:
-        ret = 0;
+        ret = CalcS(value->ty, 0);
+        table[value->name] = A;
+        A += ret;
         break;
     case KOOPA_RVT_JUMP:
         ret = Visit(kind.data.jump);
@@ -176,6 +230,15 @@ int Visit(const koopa_raw_value_t &value) {
         global_table[value->name + 1] = 1;
         ret = Visit(kind.data.global_alloc);
         break;
+    case KOOPA_RVT_GET_ELEM_PTR:
+        ret = Visit(kind.data.get_elem_ptr);
+        break;
+    case KOOPA_RVT_GET_PTR:
+        ret = Visit(kind.data.get_ptr);
+        break;
+    case KOOPA_RVT_AGGREGATE:
+        ret = Visit(kind.data.aggregate);
+        break;
     default:
         assert(false);
   }
@@ -186,17 +249,24 @@ int Visit(const koopa_raw_value_t &value) {
 int Visit(const koopa_raw_return_t &value) {
     if(value.value) {
         int res = Visit(value.value);
-        printf("  lw a0, %d(sp)\n", res);
+        load_op("a0", "sp", res);
     }
-    if(R) printf("  lw ra, %d(sp)\n", F - 4);
-    if(F) printf("  addi sp, sp, %d\n", F);
+    if(R) load_op("ra", "sp", F - 4);
+    if(F) {
+        if(F >= -2048 && F <= 2047)
+            printf("  addi sp, sp, %d\n", F);
+        else {
+            printf("  li t0, %d\n", F);
+            printf("  add sp, sp, t0\n");
+        }
+    }
     printf("  ret\n");
     return 0;
 }
 
 int Visit(const koopa_raw_integer_t &value) {
     printf("  li %s, %d\n", reg[2], value.value);
-    printf("  sw %s, %d(sp)\n", reg[2], A);
+    store_op(reg[2], "sp", A);
     A += 4;
     return A - 4;
 }
@@ -204,8 +274,8 @@ int Visit(const koopa_raw_integer_t &value) {
 int Visit(const koopa_raw_binary_t &binary) {
     int ls = Visit(binary.lhs);
     int rs = Visit(binary.rhs);
-    printf("  lw %s, %d(sp)\n", reg[0], ls);
-    printf("  lw %s, %d(sp)\n", reg[1], rs);
+    load_op(reg[0], "sp", ls);
+    load_op(reg[1], "sp", rs);
     switch (binary.op) {
         case KOOPA_RBO_NOT_EQ:
             printf("  xor %s, %s, %s\n", reg[2], reg[0], reg[1]);
@@ -265,36 +335,51 @@ int Visit(const koopa_raw_binary_t &binary) {
         default:
             assert(false);
     }
-    printf("  sw %s, %d(sp)\n", reg[2], A);
+    store_op(reg[2], "sp", A);
     A += 4;
     return A - 4;
 }
 
 int Visit(const koopa_raw_store_t &store) {
     int res = Visit(store.value);
+    if(!store.dest->name) {
+        int dest = Visit(store.dest);
+        load_op("t1", "sp", res);
+        load_op("t0", "sp", dest);
+        store_op("t1", "t0", 0);
+        return res;
+    }
     if(global_table.find(store.dest->name + 1) == global_table.end()) {
         if (table.find(store.dest->name) == table.end())
             table[store.dest->name] = res;
-        else printf("  sw %s, %d(sp)\n", reg[2], table[store.dest->name]);
+        else {
+            load_op("t0", "sp", res);
+            store_op("t0", "sp", table[store.dest->name]);
+        }
     }
     else {
-        printf("  lw t1, %d(sp)\n", res);
+        load_op("t1", "sp", res);
         printf("  la t0, %s\n", store.dest->name + 1);
-        printf("  sw t1, 0(t0)\n");
+        store_op("t1", "t0", 0);
     }
     return res;
 }
 
 int Visit(const koopa_raw_load_t &load) {
-    if(table.find(load.src->name) != table.end()) {
-        printf("  lw %s, %d(sp)\n", reg[2], table[load.src->name]);
-        printf("  sw %s, %d(sp)\n", reg[2], A);
+    if(!load.src->name) {
+        int src = Visit(load.src);
+        load_op("t1", "sp", src);
+        load_op("t0", "t1", 0);
     }
     else {
-        printf("  la t0, %s\n", load.src->name + 1);
-        printf("  lw t0, 0(t0)\n");
-        printf("  sw t0, %d(sp)\n", A);
+        if(table.find(load.src->name) != table.end())
+            load_op("t0", "sp", table[load.src->name]);
+        else {
+            printf("  la t0, %s\n", load.src->name + 1);
+            load_op("t0", "t0", 0);
+        }
     }
+    store_op("t0", "sp", A);
     A += 4;
     return A - 4;
 }
@@ -306,7 +391,7 @@ int Visit(const koopa_raw_jump_t &jump) {
 
 int Visit(const koopa_raw_branch_t &branch) {
     int res = Visit(branch.cond);
-    printf("  lw t0, %d(sp)\n", res);
+    load_op("t0", "sp", res);
     printf("  bnez t0, %s\n", branch.true_bb->name + 1);
     printf("  j %s\n", branch.false_bb->name + 1);
     return 0;
@@ -316,23 +401,104 @@ int Visit(const koopa_raw_call_t &value) {
     putargs(value.args);
     printf("  call %s\n", value.callee->name + 1);
     if(value.callee->ty->data.function.ret->tag != KOOPA_RTT_UNIT)
-        printf("  sw a0, %d(sp)\n", A), A += 4;
+        store_op("a0", "sp", A), A += 4;
     return A - 4;
 }
 
 int Visit(const koopa_raw_func_arg_ref_t &value) {
     if(value.index < 8)
-        printf("  sw a%zu, %d(sp)\n", value.index, A);
+        store_op(reg[7 + value.index], "sp", A);
     else {
-        printf("  lw t1, %lu(sp)\n", F + (value.index - 8) * 4);
-        printf("  sw t1, %d(sp)\n", A);
+        load_op("t1", "sp", F + (value.index - 8) * 4);
+        store_op("t1", "sp", A);
     }
     A += 4;
     return A - 4;
 }
 
 int Visit(const koopa_raw_global_alloc_t &alloc) {
-    if(alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT) printf("  .zero 4\n");
-    else printf("  .word %d\n", alloc.init->kind.data.integer.value);
+    if(alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT) {
+        int res = CalcS(alloc.init->ty, 1);
+        printf("  .zero %d\n", res);
+    }
+    else if(alloc.init->kind.tag == KOOPA_RVT_INTEGER)
+        printf("  .word %d\n", alloc.init->kind.data.integer.value);
+    else if(alloc.init->kind.tag == KOOPA_RVT_AGGREGATE)
+        Visit(alloc.init);
     return 0;
+}
+
+int Visit(const koopa_raw_aggregate_t &agg) {
+    for (size_t i = 0; i < agg.elems.len; ++i) {
+        auto ptr = reinterpret_cast<koopa_raw_value_t>(agg.elems.buffer[i]);;
+        if(ptr->kind.tag == KOOPA_RVT_ZERO_INIT) {
+            int res = CalcS(ptr->ty, 1);
+            printf("  .zero %d\n", res);
+        }
+        else if(ptr->kind.tag == KOOPA_RVT_INTEGER)
+            printf("  .word %d\n", ptr->kind.data.integer.value);
+        else if(ptr->kind.tag == KOOPA_RVT_AGGREGATE)
+            Visit(ptr);
+    }
+    return 0;
+}
+
+int Visit(const koopa_raw_get_elem_ptr_t &ptr) {
+    if(ptr.src->name) {
+        if(global_table.find(ptr.src->name + 1) == global_table.end()) {
+            if(table.find(ptr.src->name) == table.end())
+                assert(false);
+            printf("  addi t0, sp, %d\n", table[ptr.src->name]);
+        }
+        else 
+            printf("  la t0, %s\n", ptr.src->name + 1);
+    }
+    else {
+        int res = Visit(ptr.src);
+        load_op("t0", "sp", res);
+    }
+
+    if(ptr.index->kind.tag == KOOPA_RVT_INTEGER)
+        printf("  li t1, %d\n", ptr.index->kind.data.integer.value);
+    else {
+        int res = Visit(ptr.index);
+        load_op("t1", "sp", res);
+    }
+    int ptr_size = CalcS(ptr.src->ty, -1);
+    printf("  li t2, %d\n", ptr_size);
+    puts("  mul t1, t1, t2");
+    puts("  add t0, t0, t1");
+    store_op("t0", "sp", A);
+    A += 4;
+    return A - 4;       
+}
+
+int Visit(const koopa_raw_get_ptr_t &ptr) {
+    if(ptr.src->name) {
+        if(global_table.find(ptr.src->name + 1) == global_table.end()) {
+            if(table.find(ptr.src->name) == table.end())
+                assert(false);
+            printf("  addi t0, sp, %d\n", table[ptr.src->name]);
+        }
+        else 
+            printf("  la t0, %s\n", ptr.src->name + 1);
+    }
+    else {
+        int res = Visit(ptr.src);
+        load_op("t0", "sp", res);
+    }
+
+    if(ptr.index->kind.tag == KOOPA_RVT_INTEGER)
+        printf("  li t1, %d\n", ptr.index->kind.data.integer.value);
+    else {
+        int res = Visit(ptr.index);
+        load_op("t1", "sp", res);
+    }
+    int ptr_size = CalcS(ptr.src->ty, 0);
+    printf("  li t2, %d\n", ptr_size);
+    puts("  mul t1, t1, t2");
+    puts("  add t0, t0, t1");
+    store_op("t0", "sp", A);
+    A += 4;
+    return A - 4;
 }
