@@ -1,9 +1,11 @@
 #include <riscv.h>
+#define printf ++lines, printf
 
 map<const char*, int, ptrCmp> table;
 map<const char*, int, ptrCmp> global_table;
+map<const char*, int, ptrCmp> block_line;
 const char* reg[15] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"};
-int F = 0, argstop = 0;
+int F = 0, argstop = 0, lines = 0;
 int S = 0, R = 0, A = 0;
 map<koopa_raw_value_t, int> vis;
 map<koopa_raw_value_t, int> vis_cnt;
@@ -178,8 +180,10 @@ void Visit(const koopa_raw_function_t &func) {
 
 // 访问基本块
 void Visit(const koopa_raw_basic_block_t &bb) {
-    if(bb->name[1] == 'b')
+    if(bb->name[1] == 'b') {
         printf("%s:\n", bb->name + 1);
+        block_line[bb->name] = lines;
+    }
     // 访问所有指令
     Visit(bb->insts);
 }
@@ -392,8 +396,16 @@ int Visit(const koopa_raw_jump_t &jump) {
 int Visit(const koopa_raw_branch_t &branch) {
     int res = Visit(branch.cond);
     load_op("t0", "sp", res);
-    printf("  bnez t0, %s\n", branch.true_bb->name + 1);
-    printf("  j %s\n", branch.false_bb->name + 1);
+    if(lines <= 2048) {
+        printf("  bnez t0, %s\n", branch.true_bb->name + 1);
+        printf("  j %s\n", branch.false_bb->name + 1);
+    }
+    else {
+        printf("  bnez t0, mid_%s\n", branch.true_bb->name + 1);
+        printf("  j %s\n", branch.false_bb->name + 1);
+        printf("mid_%s:\n", branch.true_bb->name + 1);
+        printf("  j %s\n", branch.true_bb->name + 1);
+    }
     return 0;
 }
 
